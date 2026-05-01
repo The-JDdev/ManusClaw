@@ -1,10 +1,15 @@
 from __future__ import annotations
 
+from datetime import datetime
 from enum import Enum
 from typing import Any, Literal, Optional, Union
 
 from pydantic import BaseModel, Field, model_validator
 
+
+# ---------------------------------------------------------------------------
+# Roles & States
+# ---------------------------------------------------------------------------
 
 class Role(str, Enum):
     SYSTEM = "system"
@@ -19,6 +24,10 @@ class AgentState(str, Enum):
     FINISHED = "FINISHED"
     ERROR = "ERROR"
 
+
+# ---------------------------------------------------------------------------
+# Message primitives
+# ---------------------------------------------------------------------------
 
 class Function(BaseModel):
     name: str
@@ -47,7 +56,11 @@ class Message(BaseModel):
         return cls(role=Role.USER, content=content)
 
     @classmethod
-    def assistant(cls, content: Optional[str] = None, tool_calls: Optional[list[ToolCall]] = None) -> "Message":
+    def assistant(
+        cls,
+        content: Optional[str] = None,
+        tool_calls: Optional[list[ToolCall]] = None,
+    ) -> "Message":
         return cls(role=Role.ASSISTANT, content=content, tool_calls=tool_calls)
 
     @classmethod
@@ -63,7 +76,10 @@ class Message(BaseModel):
                 {
                     "id": tc.id,
                     "type": tc.type,
-                    "function": {"name": tc.function.name, "arguments": tc.function.arguments},
+                    "function": {
+                        "name": tc.function.name,
+                        "arguments": tc.function.arguments,
+                    },
                 }
                 for tc in self.tool_calls
             ]
@@ -74,17 +90,26 @@ class Message(BaseModel):
         return d
 
 
+# ---------------------------------------------------------------------------
+# Memory — context-window-aware
+# ---------------------------------------------------------------------------
+
 class Memory(BaseModel):
     messages: list[Message] = Field(default_factory=list)
     max_messages: int = 100
 
     def add(self, message: Message) -> None:
         self.messages.append(message)
-        if len(self.messages) > self.max_messages:
-            keep_system = [m for m in self.messages if m.role == Role.SYSTEM]
-            rest = [m for m in self.messages if m.role != Role.SYSTEM]
-            trim_to = max(self.max_messages - len(keep_system), 10)
-            self.messages = keep_system + rest[-trim_to:]
+        self._trim()
+
+    def _trim(self) -> None:
+        if len(self.messages) <= self.max_messages:
+            return
+        # Always keep system messages; trim oldest non-system first
+        system = [m for m in self.messages if m.role == Role.SYSTEM]
+        rest = [m for m in self.messages if m.role != Role.SYSTEM]
+        keep = max(self.max_messages - len(system), 10)
+        self.messages = system + rest[-keep:]
 
     def to_list(self) -> list[dict[str, Any]]:
         return [m.to_dict() for m in self.messages]
@@ -92,6 +117,114 @@ class Memory(BaseModel):
     def clear(self) -> None:
         self.messages = []
 
+    def token_estimate(self) -> int:
+        """Rough token estimate: ~4 chars per token."""
+        total = sum(len(m.content or "") for m in self.messages)
+        return total // 4
+
+
+# ---------------------------------------------------------------------------
+# PAORR loop primitives — Plan, Act, Observe, Reflect, Retry
+# ---------------------------------------------------------------------------
+
+class Observation(BaseModel):
+    """Result of a single tool execution."""
+    tool_name: str
+    args: dict[str, Any]
+    output: Optional[str]
+    error: Optional[str]
+    success: bool
+    attempt: int = 1
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+    def summary(self) -> str:
+        if self.success:
+            out = (self.output or "")[:400]
+            return f"[{self.tool_name}] ✓ {out}"
+        return f"[{self.tool_name}] ✗ ERROR: {self.error}"
+
+
+class Reflection(BaseModel):
+    """LLM-generated reflection on whether an observation solved the goal."""
+    step_goal: str
+    observation_summary: str
+    solved: bool
+    reason: str
+    next_action: Optional[str] = None
+
+    def to_prompt(self) -> str:
+        status = "SOLVED" if self.solved else "NOT SOLVED"
+        lines = [
+            f"Reflection [{status}]:",
+            f"  Goal: {self.step_goal}",
+            f"  Observation: {self.observation_summary}",
+            f"  Reason: {self.reason}",
+        ]
+        if self.next_action:
+            lines.append(f"  Next action: {self.next_action}")
+        return "\n".join(lines)
+
+
+class TaskStep(BaseModel):
+    """A single step in the PAORR execution history."""
+    step_number: int
+    goal: str
+    observations: list[Observation] = Field(default_factory=list)
+    reflection: Optional[Reflection] = None
+    resolved: bool = False
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+    def summary(self) -> str:
+        status = "✓" if self.resolved else "✗"
+        obs_summaries = " | ".join(o.summary() for o in self.observations[-3:])
+        return f"Step {self.step_number} {status}: {self.goal[:60]} → {obs_summaries}"
+
+
+class TaskHistory(BaseModel):
+    """Persistent log of all steps across a task run."""
+    task_id: str
+    original_goal: str
+    steps: list[TaskStep] = Field(default_factory=list)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+    def add_step(self, goal: str) -> TaskStep:
+        step = TaskStep(step_number=len(self.steps) + 1, goal=goal)
+        self.steps.append(step)
+        return step
+
+    def last_step(self) -> Optional[TaskStep]:
+        return self.steps[-1] if self.steps else None
+
+    def context_summary(self, max_steps: int = 5) -> str:
+        """Compact summary of recent history for injection into prompts."""
+        recent = self.steps[-max_steps:]
+        if not recent:
+            return "No prior steps."
+        lines = ["=== Task History (recent steps) ==="]
+        for s in recent:
+            lines.append(s.summary())
+        lines.append("=== End History ===")
+        return "\n".join(lines)
+
+    def is_looping(self, window: int = 3) -> bool:
+        """Detect if the last N steps all failed with the same tool."""
+        if len(self.steps) < window:
+            return False
+        recent = self.steps[-window:]
+        if all(not s.resolved for s in recent):
+            tool_names = [
+                o.tool_name
+                for s in recent
+                for o in s.observations
+            ]
+            if len(set(tool_names)) == 1 and tool_names:
+                return True
+        return False
+
+
+# ---------------------------------------------------------------------------
+# ToolResult
+# ---------------------------------------------------------------------------
 
 class ToolResult(BaseModel):
     output: Optional[str] = None
@@ -114,14 +247,9 @@ class ToolResult(BaseModel):
         return "\n".join(parts) if parts else "(no output)"
 
 
-class ToolParam(BaseModel):
-    name: str
-    type: str
-    description: str
-    required: bool = True
-    enum: Optional[list[str]] = None
-    default: Any = None
-
+# ---------------------------------------------------------------------------
+# Planning primitives
+# ---------------------------------------------------------------------------
 
 class StepStatus(str, Enum):
     NOT_STARTED = "not_started"
