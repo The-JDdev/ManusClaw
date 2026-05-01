@@ -1,0 +1,31 @@
+# ── Core ──────────────────────────────────────────────────────────────────────
+pydantic>=2.7,<3
+loguru>=0.7
+tomli>=2.0; python_version < "3.11"
+
+# ── LLM providers (install only what you use) ─────────────────────────────────
+openai>=1.30          # OpenAI + Azure OpenAI + Ollama (OpenAI-compat)
+anthropic>=0.28       # Anthropic Claude (direct)
+tiktoken>=0.7         # Token counting
+
+# ── Web & HTTP ────────────────────────────────────────────────────────────────
+aiohttp>=3.9
+duckduckgo-search>=6.2
+
+# ── Browser automation ────────────────────────────────────────────────────────
+playwright>=1.44      # After install: playwright install chromium
+
+# ── Web crawling ──────────────────────────────────────────────────────────────
+crawl4ai>=0.3         # Optional — falls back to aiohttp if absent
+
+# ── Data visualization ────────────────────────────────────────────────────────
+matplotlib>=3.9
+mpld3>=0.5.10         # Optional — for HTML chart export
+
+# ── MCP server ────────────────────────────────────────────────────────────────
+fastapi>=0.111
+uvicorn[standard]>=0.30
+
+# ── Dev / test ────────────────────────────────────────────────────────────────
+pytest>=8
+pytest-asyncio>=0.23
