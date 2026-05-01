@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ManusClaw | The Ultimate Autonomous AI Beast</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800;900&family=Plus+Jakarta+Sans:wght@300;400;600;700&family=Fira+Code:wght@400;600&display=swap" rel="stylesheet">
+    
+    <style>
+        /* Ultra-Cinematic Variables */
+        :root {
+            --bg-deep: #030305;
+            --primary-glow: rgba(56, 189, 248, 0.2);
+            --secondary-glow: rgba(139, 92, 246, 0.2);
+            --danger-glow: rgba(239, 68, 68, 0.15);
+            --accent: #38bdf8;
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: var(--bg-deep);
+            color: #e2e8f0;
+            overflow-x: hidden;
+        }
+
+        h1, h2, h3, .cinematic-title {
+            font-family: 'Outfit', sans-serif;
+        }
+
+        .mono-font {
+            font-family: 'Fira Code', monospace;
+        }
+
+        /* Dynamic Moving Background */
+        .bg-animation {
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            z-index: -2;
+            background: 
+                radial-gradient(circle at 15% 50%, var(--primary-glow), transparent 30%),
+                radial-gradient(circle at 85% 30%, var(--secondary-glow), transparent 30%),
+                radial-gradient(circle at 50% 80%, var(--danger-glow), transparent 40%);
+            animation: pulseBg 15s ease-in-out infinite alternate;
+        }
+
+        @keyframes pulseBg {
+            0% { transform: scale(1); opacity: 0.8; }
+            50% { transform: scale(1.1); opacity: 1; }
+            100% { transform: scale(0.95); opacity: 0.7; }
+        }
+
+        /* Real 3D Glassmorphism Panel with Deep Blur */
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.4);
+            backdrop-filter: blur(30px);
+            -webkit-backdrop-filter: blur(30px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            box-shadow: 0 30px 60px -15px rgba(0, 0, 0, 0.7), inset 0 1px 1px rgba(255, 255, 255, 0.1);
+            transform-style: preserve-3d;
+            transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        /* The Premium Donation Vault Cards */
+        .donation-vault {
+            position: relative;
+            background: linear-gradient(145deg, rgba(30, 41, 59, 0.7), rgba(15, 23, 42, 0.9));
+            border-radius: 24px;
+            padding: 2px;
+            overflow: hidden;
+            z-index: 1;
+            transition: transform 0.4s ease, box-shadow 0.4s ease;
+        }
+
+        .donation-vault::before {
+            content: '';
+            position: absolute;
+            top: -50%; left: -50%; width: 200%; height: 200%;
+            background: conic-gradient(transparent, var(--border-color), transparent 30%);
+            animation: rotateBorder 4s linear infinite;
+            z-index: -1;
+            opacity: 0;
+            transition: opacity 0.4s ease;
+        }
+
+        .donation-vault:hover::before { opacity: 1; }
+        
+        .donation-vault-inner {
+            background: #0b1120;
+            border-radius: 22px;
+            height: 100%;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            position: relative;
+            z-index: 2;
+        }
+
+        @keyframes rotateBorder {
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Text Gradients */
+        .text-gradient {
+            background: linear-gradient(to right, #ffffff, #94a3b8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .text-gradient-accent {
+            background: linear-gradient(135deg, #38bdf8, #8b5cf6, #ec4899);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-size: 200% 200%;
+            animation: gradientMove 5s ease infinite;
+        }
+
+        /* Floating Animation */
+        .floating { animation: floating 6s ease-in-out infinite; }
+        @keyframes floating {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-20px); }
+            100% { transform: translateY(0px); }
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 10px; }
+        ::-webkit-scrollbar-track { background: #030305; }
+        ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 10px; border: 2px solid #030305; }
+        ::-webkit-scrollbar-thumb:hover { background: #38bdf8; }
+
+        /* Cinematic Toast */
+        #toast-container {
+            position: fixed; bottom: 40px; right: 40px; z-index: 9999;
+            display: flex; flex-direction: column; gap: 15px; pointer-events: none;
+        }
+        .toast {
+            background: rgba(5, 5, 5, 0.95);
+            backdrop-filter: blur(20px);
+            border: 1px solid;
+            color: white; padding: 20px 30px; border-radius: 16px;
+            box-shadow: 0 25px 50px -10px rgba(0,0,0,0.8);
+            display: flex; align-items: center; gap: 16px;
+            transform: translateX(150%) scale(0.9);
+            transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            opacity: 0; pointer-events: auto;
+        }
+        .toast.show { transform: translateX(0) scale(1); opacity: 1; }
+
+        /* 3D Tilt Integration */
+        .tilt-element { transform-style: preserve-3d; transform: perspective(1000px); }
+        .tilt-inner { transform: translateZ(50px); }
+        
+        /* Grid overlay for tech vibe */
+        .grid-overlay {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background-image: linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+            background-size: 50px 50px; z-index: -1; pointer-events: none;
+        }
+    </style>
+</head>
+<body class="antialiased selection:bg-sky-500 selection:text-white">
+
+    <div class="bg-animation"></div>
+    <div class="grid-overlay"></div>
+
+    <!-- Navigation -->
+    <nav class="fixed w-full z-50 glass-panel border-b-0 border-white/5 rounded-b-3xl">
+        <div class="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
+            <div class="text-3xl font-black tracking-tighter flex items-center gap-3 tilt-element" data-tilt>
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-sky-400 via-purple-500 to-pink-500 shadow-[0_0_30px_rgba(139,92,246,0.5)] flex items-center justify-center text-white tilt-inner">
+                    <i class="fas fa-paw"></i>
+                </div>
+                ManusClaw
+            </div>
+            <div class="hidden md:flex gap-10 text-sm font-bold text-gray-400">
+                <a href="#what" class="hover:text-white hover:drop-shadow-[0_0_10px_rgba(255,255,255,0.8)] transition-all">The Beast</a>
+                <a href="#architecture" class="hover:text-white hover:drop-shadow-[0_0_10px_rgba(255,255,255,0.8)] transition-all">Intelligence Layer</a>
+                <a href="#setup" class="hover:text-white hover:drop-shadow-[0_0_10px_rgba(255,255,255,0.8)] transition-all">Deployment</a>
+            </div>
+            <a href="#support" class="bg-white/10 hover:bg-white/20 px-6 py-2.5 rounded-full font-bold transition transform hover:scale-105 active:scale-95 border border-white/10 shadow-lg">
+                Fuel The Claw <i class="fas fa-bolt ml-2 text-yellow-400"></i>
+            </a>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="relative min-h-screen flex items-center justify-center pt-24 overflow-hidden">
+        <div class="max-w-7xl mx-auto px-6 flex flex-col items-center text-center z-10 w-full">
+            
+            <div class="glass-panel px-6 py-2 rounded-full text-sm font-bold text-sky-400 mb-8 border-sky-400/30 shadow-[0_0_40px_rgba(56,189,248,0.2)] tilt-element floating" data-tilt>
+                <span class="tilt-inner inline-block"><i class="fas fa-microchip mr-2"></i> v2.0 Intelligence Layer Active</span>
+            </div>
+            
+            <h1 class="text-6xl md:text-8xl lg:text-9xl font-black tracking-tighter leading-[1.1] mb-6 tilt-element" data-tilt data-tilt-max="4">
+                <span class="tilt-inner inline-block drop-shadow-2xl">Execute. <br>Automate.<br></span>
+                <span class="text-gradient-accent tilt-inner inline-block drop-shadow-[0_0_40px_rgba(139,92,246,0.4)]">Dominate.</span>
+            </h1>
+            
+            <p class="text-lg md:text-2xl text-gray-400 max-w-4xl mb-12 font-light leading-relaxed">
+                <strong class="text-white">ManusClaw</strong> is an elite, open-source AI agent orchestration beast. Armed with a self-healing <code class="bg-white/10 px-2 py-1 rounded text-sky-300">Plan -> Act -> Reflect</code> loop, it tears through web automation, Python execution, and terminal commands autonomously. No GUI. Pure programmatic lethality.
+            </p>
+            
+            <div class="flex flex-col sm:flex-row gap-6 w-full justify-center tilt-element" data-tilt>
+                <a href="#setup" class="bg-gradient-to-r from-sky-500 to-purple-600 hover:from-sky-400 hover:to-purple-500 text-white px-12 py-5 rounded-2xl font-black text-xl shadow-[0_0_40px_rgba(139,92,246,0.4)] transform transition hover:-translate-y-2 flex items-center justify-center gap-3 tilt-inner">
+                    <i class="fas fa-terminal"></i> Initialize Framework
+                </a>
+                <a href="https://github.com/The-JDdev/ManusClaw" target="_blank" class="glass-panel hover:bg-white/10 text-white px-12 py-5 rounded-2xl font-bold text-xl border-white/20 transform transition hover:-translate-y-2 flex items-center justify-center gap-3 tilt-inner">
+                    <i class="fa-brands fa-github text-2xl"></i> View Repository
+                </a>
+            </div>
+
+            <!-- Cinematic Live Terminal Simulation -->
+            <div class="w-full max-w-3xl mt-20 glass-panel rounded-2xl overflow-hidden border border-white/10 shadow-[0_20px_70px_rgba(0,0,0,0.8)] tilt-element text-left" data-tilt data-tilt-max="2">
+                <div class="bg-black/60 px-4 py-3 flex items-center gap-2 border-b border-white/10">
+                    <div class="w-3.5 h-3.5 rounded-full bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.6)]"></div>
+                    <div class="w-3.5 h-3.5 rounded-full bg-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.6)]"></div>
+                    <div class="w-3.5 h-3.5 rounded-full bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.6)]"></div>
+                    <span class="ml-4 text-xs mono-font text-gray-500">manus_claw_core_execution.sh</span>
+                </div>
+                <div class="p-6 bg-[#030305]/90 mono-font text-sm leading-relaxed h-48 overflow-hidden relative">
+                    <div id="typewriter" class="text-green-400"></div>
+                    <div class="absolute bottom-0 left-0 w-full h-12 bg-gradient-to-t from-[#030305]/90 to-transparent"></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Deep Dive: The Genesis -->
+    <section id="what" class="py-32 relative z-10">
+        <div class="max-w-7xl mx-auto px-6">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
+                
+                <div class="tilt-element" data-tilt data-tilt-max="3" data-tilt-glare="true" data-tilt-max-glare="0.2">
+                    <div class="glass-panel p-12 rounded-[2.5rem] h-full border-l-4 border-l-sky-500 relative overflow-hidden">
+                        <div class="absolute -right-20 -top-20 w-64 h-64 bg-sky-500/10 rounded-full blur-[50px]"></div>
+                        <h2 class="text-4xl md:text-5xl font-black mb-8 text-gradient">The Genesis of ManusClaw</h2>
+                        <p class="text-gray-300 text-lg leading-relaxed mb-6">
+                            Standard AI wrappers are built for casual users. <strong class="text-white">ManusClaw</strong> is engineered for architects. It abandons restrictive GUIs, embedding a deeply integrated orchestration layer directly into your terminal. 
+                        </p>
+                        <p class="text-gray-300 text-lg leading-relaxed mb-8">
+                            By utilizing dynamic TOML configurations, it bypasses vendor lock-in, allowing instant routing between OpenAI, DeepSeek, Anthropic, or local Ollama models. It doesn't just "talk"—it spawns isolated Python subprocesses, manipulates deep DOM structures via Playwright, and modifies system files in real-time.
+                        </p>
+                        <div class="space-y-5 text-gray-300 font-bold text-lg">
+                            <div class="flex items-center gap-4 bg-white/5 p-4 rounded-xl"><i class="fas fa-check-circle text-sky-400 text-2xl"></i> True CLI & Programmatic Integration</div>
+                            <div class="flex items-center gap-4 bg-white/5 p-4 rounded-xl"><i class="fas fa-check-circle text-sky-400 text-2xl"></i> Agnostic Multi-LLM Routing</div>
+                            <div class="flex items-center gap-4 bg-white/5 p-4 rounded-xl"><i class="fas fa-check-circle text-sky-400 text-2xl"></i> Persistent Short/Long-Term Memory</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="space-y-8">
+                    <div class="glass-panel p-8 rounded-3xl tilt-element border border-white/5 hover:border-purple-500/30 transition-all" data-tilt>
+                        <div class="w-16 h-16 rounded-2xl bg-purple-500/20 flex items-center justify-center text-purple-400 text-3xl mb-6 shadow-[0_0_30px_rgba(139,92,246,0.3)]"><i class="fas fa-brain"></i></div>
+                        <h3 class="text-2xl font-bold mb-3 text-white">Self-Healing Logic</h3>
+                        <p class="text-gray-400 leading-relaxed">Unlike basic scripts that crash on error, ManusClaw analyzes stack traces, restructures its plan, and aggressively retries using alternate tools until the objective is secured.</p>
+                    </div>
+                    <div class="glass-panel p-8 rounded-3xl tilt-element border border-white/5 hover:border-pink-500/30 transition-all" data-tilt>
+                        <div class="w-16 h-16 rounded-2xl bg-pink-500/20 flex items-center justify-center text-pink-400 text-3xl mb-6 shadow-[0_0_30px_rgba(236,72,153,0.3)]"><i class="fas fa-spider"></i></div>
+                        <h3 class="text-2xl font-bold mb-3 text-white">Model Context Protocol (MCP)</h3>
+                        <p class="text-gray-400 leading-relaxed">Seamless global tool discovery. Connect via stdio or SSE transports. Proxy remote tools instantly or spin up your own FastMCP server to expose local execution globally.</p>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <!-- The Intelligence Layer (Cinematic Grid) -->
+    <section id="architecture" class="py-32 relative z-10 bg-[#020203]/80 border-y border-white/5">
+        <div class="max-w-7xl mx-auto px-6">
+            <div class="text-center mb-20">
+                <h2 class="text-5xl md:text-6xl font-black mb-6">The <span class="text-gradient-accent">Intelligence</span> Layer</h2>
+                <p class="text-gray-400 max-w-3xl mx-auto text-xl font-light">Anatomy of an autonomous beast. ManusClaw operates on a multi-tiered cognitive architecture designed for raw problem-solving.</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-10">
+                <!-- Architecture 1 -->
+                <div class="glass-panel p-10 rounded-[2rem] tilt-element hover-3d group" data-tilt>
+                    <div class="text-sky-400 text-5xl mb-8 group-hover:scale-110 transition duration-500 drop-shadow-[0_0_20px_rgba(56,189,248,0.5)] tilt-inner"><i class="fas fa-sync"></i></div>
+                    <h3 class="text-3xl font-bold mb-5 text-white">The Manus Loop</h3>
+                    <p class="text-gray-400 text-base leading-relaxed">
+                        Hardcoded cognitive cycle: <code class="text-sky-300 bg-sky-500/10 px-2 py-1 rounded">Plan -> Act -> Observe -> Reflect -> Retry</code>. The system executes a tool, reads the output, evaluates success against the goal, and pivots strategy dynamically if blocked.
+                    </p>
+                </div>
+
+                <!-- Architecture 2 -->
+                <div class="glass-panel p-10 rounded-[2rem] tilt-element hover-3d group" data-tilt>
+                    <div class="text-purple-400 text-5xl mb-8 group-hover:scale-110 transition duration-500 drop-shadow-[0_0_20px_rgba(139,92,246,0.5)] tilt-inner"><i class="fas fa-toolbox"></i></div>
+                    <h3 class="text-3xl font-bold mb-5 text-white">Lethal Tool Arsenal</h3>
+                    <p class="text-gray-400 text-base leading-relaxed">
+                        Natively equipped with isolated multiprocessing <code class="text-purple-300">PythonExecute</code>, Playwright-driven persistent <code class="text-purple-300">BrowserUseTool</code>, regex-ready <code class="text-purple-300">StrReplaceEditor</code>, and exponential backoff search engines.
+                    </p>
+                </div>
+
+                <!-- Architecture 3 -->
+                <div class="glass-panel p-10 rounded-[2rem] tilt-element hover-3d group" data-tilt>
+                    <div class="text-pink-400 text-5xl mb-8 group-hover:scale-110 transition duration-500 drop-shadow-[0_0_20px_rgba(236,72,153,0.5)] tilt-inner"><i class="fas fa-shield-virus"></i></div>
+                    <h3 class="text-3xl font-bold mb-5 text-white">Docker Sandboxing</h3>
+                    <p class="text-gray-400 text-base leading-relaxed">
+                        Dangerous executions are contained. Code modifications and bash terminal commands are executed within configurable Docker environments, ensuring host system integrity during deep analysis.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Setup Guide (Terminal Style inside Glass) -->
+    <section id="setup" class="py-32 relative z-10">
+        <div class="max-w-5xl mx-auto px-6">
+            <div class="text-center mb-16">
+                <h2 class="text-4xl md:text-5xl font-black mb-4">Framework <span class="text-gradient-accent">Initialization</span></h2>
+            </div>
+
+            <div class="glass-panel p-1 rounded-3xl overflow-hidden shadow-2xl tilt-element" data-tilt data-tilt-max="2">
+                <!-- Mac-style Window Header -->
+                <div class="bg-black/40 px-4 py-3 flex items-center gap-2 border-b border-white/5">
+                    <div class="w-3 h-3 rounded-full bg-red-500"></div>
+                    <div class="w-3 h-3 rounded-full bg-yellow-500"></div>
+                    <div class="w-3 h-3 rounded-full bg-green-500"></div>
+                    <span class="ml-4 text-xs font-mono text-gray-500">setup_manusclaw.sh</span>
+                </div>
+                
+                <div class="p-8 bg-[#0b1120] font-mono text-sm space-y-6">
+                    <div>
+                        <span class="text-gray-500"># 1. Clone the repository</span><br>
+                        <span class="text-sky-400">git</span> clone https://github.com/The-JDdev/ManusClaw.git<br>
+                        <span class="text-sky-400">cd</span> ManusClaw
+                    </div>
+                    
+                    <div>
+                        <span class="text-gray-500"># 2. Install dependencies (Requires Python 3.11/3.12)</span><br>
+                        <span class="text-sky-400">pip</span> install -r requirements.txt
+                    </div>
+
+                    <div>
+                        <span class="text-gray-500"># 3. Configure your API keys in config.toml</span><br>
+                        <span class="text-purple-400">cp</span> config.example.toml config.toml<br>
+                        <span class="text-gray-400"># Edit config.toml to add LLM backend details</span>
+                    </div>
+
+                    <div>
+                        <span class="text-gray-500"># 4. Execute the main agent</span><br>
+                        <span class="text-sky-400">python</span> main.py <span class="text-green-400">"Build a 3D cinematic landing page"</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Support & Donation (THE CYBERPUNK VAULT) -->
+    <section id="support" class="py-32 relative z-10">
+        <div class="max-w-7xl mx-auto px-6">
+            <div class="text-center mb-20">
+                <div class="inline-flex items-center justify-center w-20 h-20 rounded-full bg-yellow-500/10 text-yellow-500 text-4xl mb-6 shadow-[0_0_50px_rgba(234,179,8,0.2)]">
+                    <i class="fas fa-bolt"></i>
+                </div>
+                <h2 class="text-5xl md:text-6xl font-black mb-6">Fuel The <span class="text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-500">Claw</span></h2>
+                <p class="text-gray-400 max-w-3xl mx-auto text-xl font-light">Open-source development requires raw power. Support the engineering behind ManusClaw. Click any encrypted vault below to copy the exact address.</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-8">
+                
+                <!-- USDT TRON VAULT -->
+                <div class="donation-vault tilt-element cursor-pointer group" data-tilt data-tilt-max="5" style="--border-color: #ef4444;" onclick="copyToClipboard('TH75J4zaMPwhyR3QxEFdwTCgU2Pp3yPUEr', 'USDT (TRC20)', '#ef4444')">
+                    <div class="donation-vault-inner group-hover:bg-[#111827] transition-colors">
+                        <div class="absolute inset-0 bg-red-500/5 blur-3xl rounded-full group-hover:bg-red-500/20 transition-all duration-500"></div>
+                        <div class="w-20 h-20 rounded-2xl bg-[#1a0f14] border border-red-500/30 flex items-center justify-center text-red-500 text-4xl mb-6 shadow-[0_0_30px_rgba(239,68,68,0.4)] tilt-inner group-hover:scale-110 transition duration-500">
+                            <i class="fa-brands fa-ethereum"></i>
+                        </div>
+                        <h4 class="text-2xl font-black text-white mb-2 tracking-wide">USDT</h4>
+                        <div class="bg-red-500/10 text-red-400 text-xs font-bold px-3 py-1 rounded-full mb-4 border border-red-500/20">TRC20 Network</div>
+                        <p class="text-sm text-gray-500 mono-font break-all line-clamp-1 w-full bg-black/50 p-3 rounded-lg border border-white/5 group-hover:border-red-500/50 group-hover:text-white transition-all">TH75J4zaMPwhyR3QxEFdwTCgU2Pp3yPUEr</p>
+                        <div class="mt-6 font-bold text-red-500 opacity-0 group-hover:opacity-100 transform translate-y-4 group-hover:translate-y-0 transition-all duration-300"><i class="fas fa-crosshairs"></i> Click to Extract</div>
+                    </div>
+                </div>
+
+                <!-- WebMoney WMT VAULT -->
+                <div class="donation-vault tilt-element cursor-pointer group" data-tilt data-tilt-max="5" style="--border-color: #3b82f6;" onclick="copyToClipboard('T202226490170', 'WebMoney (WMT)', '#3b82f6')">
+                    <div class="donation-vault-inner group-hover:bg-[#111827] transition-colors">
+                        <div class="absolute inset-0 bg-blue-500/5 blur-3xl rounded-full group-hover:bg-blue-500/20 transition-all duration-500"></div>
+                        <div class="w-20 h-20 rounded-2xl bg-[#0f1624] border border-blue-500/30 flex items-center justify-center text-blue-500 text-4xl mb-6 shadow-[0_0_30px_rgba(59,130,246,0.4)] tilt-inner group-hover:scale-110 transition duration-500">
+                            <i class="fas fa-wallet"></i>
+                        </div>
+                        <h4 class="text-2xl font-black text-white mb-2 tracking-wide">WebMoney</h4>
+                        <div class="bg-blue-500/10 text-blue-400 text-xs font-bold px-3 py-1 rounded-full mb-4 border border-blue-500/20">WMT Wallet</div>
+                        <p class="text-sm text-gray-500 mono-font break-all w-full bg-black/50 p-3 rounded-lg border border-white/5 group-hover:border-blue-500/50 group-hover:text-white transition-all">T202226490170</p>
+                        <div class="mt-6 font-bold text-blue-500 opacity-0 group-hover:opacity-100 transform translate-y-4 group-hover:translate-y-0 transition-all duration-300"><i class="fas fa-crosshairs"></i> Click to Extract</div>
+                    </div>
+                </div>
+
+                <!-- WebMoney WMZ VAULT -->
+                <div class="donation-vault tilt-element cursor-pointer group" data-tilt data-tilt-max="5" style="--border-color: #f59e0b;" onclick="copyToClipboard('Z430378899900', 'WebMoney (WMZ)', '#f59e0b')">
+                    <div class="donation-vault-inner group-hover:bg-[#111827] transition-colors">
+                        <div class="absolute inset-0 bg-amber-500/5 blur-3xl rounded-full group-hover:bg-amber-500/20 transition-all duration-500"></div>
+                        <div class="w-20 h-20 rounded-2xl bg-[#1a160f] border border-amber-500/30 flex items-center justify-center text-amber-500 text-4xl mb-6 shadow-[0_0_30px_rgba(245,158,11,0.4)] tilt-inner group-hover:scale-110 transition duration-500">
+                            <i class="fas fa-dollar-sign"></i>
+                        </div>
+                        <h4 class="text-2xl font-black text-white mb-2 tracking-wide">WebMoney</h4>
+                        <div class="bg-amber-500/10 text-amber-400 text-xs font-bold px-3 py-1 rounded-full mb-4 border border-amber-500/20">WMZ Wallet</div>
+                        <p class="text-sm text-gray-500 mono-font break-all w-full bg-black/50 p-3 rounded-lg border border-white/5 group-hover:border-amber-500/50 group-hover:text-white transition-all">Z430378899900</p>
+                        <div class="mt-6 font-bold text-amber-500 opacity-0 group-hover:opacity-100 transform translate-y-4 group-hover:translate-y-0 transition-all duration-300"><i class="fas fa-crosshairs"></i> Click to Extract</div>
+                    </div>
+                </div>
+
+                <!-- bKash VAULT (BD LOCAL) -->
+                <div class="donation-vault tilt-element cursor-pointer group" data-tilt data-tilt-max="5" style="--border-color: #ec4899;" onclick="copyToClipboard('01310211442', 'bKash (BD)', '#ec4899')">
+                    <div class="donation-vault-inner group-hover:bg-[#111827] transition-colors">
+                        <div class="absolute inset-0 bg-pink-500/5 blur-3xl rounded-full group-hover:bg-pink-500/20 transition-all duration-500"></div>
+                        <div class="w-20 h-20 rounded-2xl bg-[#1a0f16] border border-pink-500/30 flex items-center justify-center text-pink-500 text-4xl mb-6 shadow-[0_0_30px_rgba(236,72,153,0.4)] tilt-inner group-hover:scale-110 transition duration-500">
+                            <i class="fas fa-mobile-retro"></i>
+                        </div>
+                        <h4 class="text-2xl font-black text-white mb-2 tracking-wide">bKash</h4>
+                        <div class="bg-pink-500/10 text-pink-400 text-xs font-bold px-3 py-1 rounded-full mb-4 border border-pink-500/20">BD Local</div>
+                        <p class="text-sm text-gray-500 mono-font break-all w-full bg-black/50 p-3 rounded-lg border border-white/5 group-hover:border-pink-500/50 group-hover:text-white transition-all text-xl tracking-widest">01310211442</p>
+                        <div class="mt-6 font-bold text-pink-500 opacity-0 group-hover:opacity-100 transform translate-y-4 group-hover:translate-y-0 transition-all duration-300"><i class="fas fa-crosshairs"></i> Click to Extract</div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer & Hidden Contacts -->
+    <footer class="py-10 relative z-10 border-t border-white/5 bg-[#010102]">
+        <div class="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-6">
+            
+            <div class="flex items-center gap-3 text-2xl font-black tracking-tighter">
+                <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-gray-300 to-gray-600 flex items-center justify-center text-black text-sm"><i class="fas fa-bolt"></i></div>
+                JD Lab
+            </div>
+            
+            <p class="text-gray-600 text-sm font-bold uppercase tracking-widest">© 2026 ManusClaw Engine. Authored by JD.</p>
+            
+            <!-- Hidden Contact Buttons -->
+            <div class="flex gap-4">
+                <a href="https://t.me/aamoviesadmin" target="_blank" class="w-12 h-12 rounded-2xl glass-panel flex items-center justify-center text-gray-500 hover:text-sky-400 hover:border-sky-400/50 hover:bg-sky-500/10 transition-all hover:scale-110" title="Telegram Admin">
+                    <i class="fa-brands fa-telegram text-xl"></i>
+                </a>
+                <a href="https://t.me/AAMoviesofficial" target="_blank" class="w-12 h-12 rounded-2xl glass-panel flex items-center justify-center text-gray-500 hover:text-blue-400 hover:border-blue-400/50 hover:bg-blue-500/10 transition-all hover:scale-110" title="Telegram Channel">
+                    <i class="fas fa-bullhorn text-xl"></i>
+                </a>
+                <a href="https://facebook.com/itsshsshobuj" target="_blank" class="w-12 h-12 rounded-2xl glass-panel flex items-center justify-center text-gray-500 hover:text-blue-600 hover:border-blue-600/50 hover:bg-blue-600/10 transition-all hover:scale-110" title="Facebook">
+                    <i class="fa-brands fa-facebook-f text-xl"></i>
+                </a>
+                <a href="mailto:thejddev.official@gmail.com" class="w-12 h-12 rounded-2xl glass-panel flex items-center justify-center text-gray-500 hover:text-red-400 hover:border-red-400/50 hover:bg-red-500/10 transition-all hover:scale-110" title="Email">
+                    <i class="fas fa-envelope text-xl"></i>
+                </a>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container"></div>
+
+    <!-- Logic Engine & Animations -->
+    <script>
+        // Ultra-Cinematic Toast Notification
+        function showToast(message, subtext, colorHex) {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.style.borderColor = `${colorHex}50`;
+            
+            toast.innerHTML = `
+                <div class="w-12 h-12 rounded-full border-2 flex items-center justify-center text-xl" style="background: ${colorHex}20; border-color: ${colorHex}50; color: ${colorHex}; box-shadow: 0 0 20px ${colorHex}40;">
+                    <i class="fas fa-check-double"></i>
+                </div>
+                <div>
+                    <h4 class="font-black text-sm text-white tracking-wide uppercase">${message}</h4>
+                    <p class="text-xs font-mono mt-1 text-gray-400" style="color: ${colorHex};">${subtext}</p>
+                </div>
+            `;
+            
+            container.appendChild(toast);
+            
+            // Trigger animation
+            setTimeout(() => toast.classList.add('show'), 10);
+            
+            // Remove with animation
+            setTimeout(() => {
+                toast.classList.remove('show');
+                toast.style.transform = 'translateX(150%) scale(0.9)';
+                setTimeout(() => toast.remove(), 500); 
+            }, 3000);
+        }
+
+        // Copy Core
+        function copyToClipboard(text, typeName, colorHex) {
+            navigator.clipboard.writeText(text).then(() => {
+                showToast(`EXTRACTED: ${typeName}`, text, colorHex);
+            }).catch(err => {
+                const tempInput = document.createElement("input");
+                tempInput.value = text;
+                document.body.appendChild(tempInput);
+                tempInput.select();
+                document.execCommand("copy");
+                document.body.removeChild(tempInput);
+                showToast(`EXTRACTED: ${typeName}`, text, colorHex);
+            });
+        }
+
+        // Vanilla JS 3D Tilt Effect (High Performance)
+        document.querySelectorAll('[data-tilt]').forEach(element => {
+            const maxTilt = element.getAttribute('data-tilt-max') || 12;
+            
+            element.addEventListener('mousemove', e => {
+                const rect = element.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                const centerX = rect.width / 2;
+                const centerY = rect.height / 2;
+                
+                const tiltX = ((y - centerY) / centerY) * -maxTilt;
+                const tiltY = ((x - centerX) / centerX) * maxTilt;
+                
+                element.style.transform = `perspective(1200px) rotateX(${tiltX}deg) rotateY(${tiltY}deg) scale3d(1.02, 1.02, 1.02)`;
+            });
+            
+            element.addEventListener('mouseleave', () => {
+                element.style.transform = `perspective(1200px) rotateX(0deg) rotateY(0deg) scale3d(1, 1, 1)`;
+                element.style.transition = 'transform 0.6s cubic-bezier(0.23, 1, 0.32, 1)';
+            });
+            
+            element.addEventListener('mouseenter', () => {
+                element.style.transition = 'transform 0.1s ease-out';
+            });
+        });
+
+        // Terminal Typewriter Effect
+        const commands = [
+            "> Initializing ManusClaw v2.0 Engine...",
+            "> Loading TOML Config: OK",
+            "> Connecting to LLM Base (temperature=0.7)...",
+            "> Spawning Plan->Act->Reflect Loop...",
+            "> [TOOL CALL] Initiating python_execute() isolation...",
+            "> Parsing output...",
+            "> STATUS: Domination sequence engaged. Awaiting directive."
+        ];
+        
+        let cmdIndex = 0;
+        let charIndex = 0;
+        const speed = 30; // typing speed
+        const pauseBetweenCmds = 500;
+        const typeTarget = document.getElementById("typewriter");
+
+        function typeWriter() {
+            if (cmdIndex < commands.length) {
+                if (charIndex < commands[cmdIndex].length) {
+                    typeTarget.innerHTML += commands[cmdIndex].charAt(charIndex);
+                    charIndex++;
+                    setTimeout(typeWriter, speed);
+                } else {
+                    typeTarget.innerHTML += "<br>";
+                    cmdIndex++;
+                    charIndex = 0;
+                    setTimeout(typeWriter, pauseBetweenCmds);
+                }
+            } else {
+                // Add blinking cursor at the end
+                typeTarget.innerHTML += '<span class="animate-pulse bg-green-400 text-green-400">_</span>';
+            }
+        }
+
+        // Start typing after a short delay
+        setTimeout(typeWriter, 1000);
+    </script>
+</body>
+</html>
