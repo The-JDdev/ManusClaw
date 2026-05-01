@@ -1,7 +1,7 @@
 <div align="center">
 
 <!-- HERO IMAGE -->
-<img src="https://placehold.co/1200x400/0d1117/58a6ff?text=ManusClaw+v2+%E2%80%94+Autonomous+AI+Agent+Framework&font=raleway" alt="ManusClaw Banner" width="100%" />
+<img src="https://i.postimeg.cc/513b8cbed86b4306b4ed2ce45762d70e.jpg" alt="ManusClaw Banner" width="100%" />
 
 <h1>🦾 ManusClaw</h1>
 
