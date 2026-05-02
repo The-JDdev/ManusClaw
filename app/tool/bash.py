@@ -1,28 +1,28 @@
 from __future__ import annotations
 
 """
-Bash — persistent async shell session.
+Shell — persistent async shell session, cross-platform.
+
+Platforms:
+  Linux   → bash --norc --noprofile
+  macOS   → bash --norc --noprofile  (or zsh if bash absent)
+  Windows → PowerShell -NoProfile -NonInteractive
+  Termux  → bash (no --norc needed, profile is fine)
 
 Runtime philosophy: TASK-COMPLETE, NOT TIME-BOXED.
-  The agent runs until the work is done — period.
-  If a task needs 2 minutes, it runs 2 minutes.
-  If it needs 3 hours, it runs 3 hours.
-  There is no DEFAULT timeout and no MAX cap.
-  Pass timeout=None (or omit it) → runs until completion, no kill.
-  Pass timeout=N   → kills after exactly N seconds if still running.
+  No DEFAULT timeout. No MAX cap.
+  Pass timeout=None (or omit) → runs until natural completion.
+  Pass timeout=N   → killed after exactly N seconds.
 
-Blocked (hard deny — OS-destroying operations only):
-  rm -rf /   rm -rf /*   fork bombs   dd to block devices
-  mkfs       wipefs      kill -9 -1   shred /bin|/usr|/boot
-
-Everything else is permitted with zero restriction:
-  sudo, apt, pip, npm, cargo, git, curl, wget, ssh, docker,
-  systemctl, crontab, /etc edits, compiles, crawlers, ML jobs,
-  batch pipelines, overnight automation — all fully allowed.
+Blocked (hard deny — OS-destroying only):
+  Linux/Mac: rm -rf /  fork bombs  dd to block dev  mkfs  kill -9 -1
+  Windows:   rd /s /q C:\  format C:  del /f /s /q C:\Windows\*
 """
 
 import asyncio
 import re
+import shutil
+import sys
 from typing import Any, Optional
 
 from app.logger import logger
@@ -31,14 +31,56 @@ from app.tool.base import BaseTool
 
 
 # ---------------------------------------------------------------------------
-# Catastrophic blacklist — the ONLY restriction in this tool
+# Platform detection
 # ---------------------------------------------------------------------------
 
-_CATASTROPHIC = [
+IS_WINDOWS = sys.platform == "win32"
+IS_TERMUX  = not IS_WINDOWS and shutil.which("termux-info") is not None
+
+
+def _shell_cmd() -> str:
+    if IS_WINDOWS:
+        return "powershell.exe -NoProfile -NonInteractive -Command -"
+    bash = shutil.which("bash")
+    if bash:
+        return f"{bash} --norc --noprofile"
+    zsh = shutil.which("zsh")
+    if zsh:
+        return zsh
+    return "sh"
+
+
+def _sentinel_cmd(sentinel: str) -> str:
+    if IS_WINDOWS:
+        return f'Write-Host "{sentinel}"'
+    return f"echo {sentinel}"
+
+
+def _exit_cmd() -> str:
+    if IS_WINDOWS:
+        return r'Write-Host "EXIT:$LASTEXITCODE"'
+    return 'echo "EXIT:$?"'
+
+
+def _wrap(command: str, sentinel: str) -> str:
+    if IS_WINDOWS:
+        return (
+            f"{command}\n"
+            f"{_exit_cmd()}\n"
+            f"{_sentinel_cmd(sentinel)}\n"
+        )
+    return f"({command}); {_exit_cmd()}; {_sentinel_cmd(sentinel)}\n"
+
+
+# ---------------------------------------------------------------------------
+# Catastrophic patterns — the ONLY restriction, per platform
+# ---------------------------------------------------------------------------
+
+_CATASTROPHIC_UNIX = [
     r"rm\s+-[rRf]+\s+/\s*$",
     r"rm\s+-[rRf]+\s+/\*",
     r"rm\s+--no-preserve-root",
-    r":\(\)\s*\{.*:\|:.*\}",                      # fork bomb
+    r":\(\)\s*\{.*:\|:.*\}",                       # fork bomb
     r"dd\s+if=/dev/zero\s+of=/dev/(s|h|v|xv)d\b",
     r">\s*/dev/(s|h|v|xv)d[a-z]\b",
     r"mkfs\.",
@@ -48,39 +90,56 @@ _CATASTROPHIC = [
     r"shred\s+.*/(bin|sbin|lib|usr|boot)/",
 ]
 
+_CATASTROPHIC_WINDOWS = [
+    r"rd\s+/[sS]\s+/[qQ]\s+[Cc]:\\?\s*$",         # rd /s /q C:\
+    r"del\s+/[fF]\s+/[sS]\s+/[qQ]\s+[Cc]:\\[Ww]indows",
+    r"format\s+[Cc]:",                              # format C:
+    r"rmdir\s+/[sS]\s+[Cc]:\\?\s*$",
+    r"Remove-Item\s+-Recurse\s+-Force\s+[Cc]:\\?\s*$",
+    r"Remove-Item\s+.*-Recurse.*[Cc]:\\[Ww]indows",
+]
+
+_PATTERNS = _CATASTROPHIC_WINDOWS if IS_WINDOWS else _CATASTROPHIC_UNIX
+
 
 def _is_catastrophic(command: str) -> Optional[str]:
-    for p in _CATASTROPHIC:
+    for p in _PATTERNS:
         if re.search(p, command, re.IGNORECASE | re.DOTALL):
             return p
     return None
 
 
+# ---------------------------------------------------------------------------
+# Tool
+# ---------------------------------------------------------------------------
+
 class Bash(BaseTool):
     name = "bash"
     description = (
-        "Execute shell commands in a persistent bash session. "
+        "Execute shell commands in a persistent session. "
+        f"Platform: {'Windows (PowerShell)' if IS_WINDOWS else 'Linux/macOS/Termux (bash)'}. "
         "Runs until completion — no artificial time limit. "
-        "Optionally pass timeout=N (seconds) to kill after exactly N seconds. "
-        "Full output always returned — no byte truncation, ever. "
-        "Environment, working directory, and shell variables persist across calls. "
-        "Full system access: sudo, apt, pip, git, curl, docker, systemctl, etc. "
-        "Only OS-destroying commands (rm -rf /, fork bombs, mkfs) are blocked."
+        "Pass timeout=N (seconds) to set an explicit deadline. "
+        "Full output always returned — no truncation. "
+        "Environment and working directory persist across calls. "
+        "Only OS-destroying commands are blocked."
     )
     parameters = {
         "type": "object",
         "properties": {
             "command": {
                 "type": "string",
-                "description": "Shell command to run.",
+                "description": (
+                    "Shell command to run. "
+                    f"{'PowerShell syntax on Windows.' if IS_WINDOWS else 'Bash syntax on Linux/macOS/Termux.'}"
+                ),
             },
             "timeout": {
                 "type": "integer",
                 "description": (
-                    "Optional. Kill after this many seconds if still running. "
-                    "Omit (or pass null) to run until the task naturally completes — "
-                    "2 min tasks run 2 min, 3 hour jobs run 3 hours. "
-                    "Only set this if you explicitly need a deadline."
+                    "Optional. Kill after this many seconds. "
+                    "Omit to run until natural completion — 2min tasks run 2min, "
+                    "3h jobs run 3h. Only set if you need a hard deadline."
                 ),
             },
         },
@@ -101,25 +160,23 @@ class Bash(BaseTool):
         if bad:
             return ToolResult(
                 error=(
-                    f"BLOCKED — catastrophic OS-destroying pattern matched: `{bad}`\n"
+                    f"BLOCKED — catastrophic OS-destroying pattern: `{bad}`\n"
                     "This is the ONLY category of blocked commands. "
-                    "All other system operations (sudo, rm -rf subdirs, network, "
-                    "docker, /etc edits) are fully permitted."
+                    "All other system operations are fully permitted."
                 )
             )
-
         async with self._lock:
             return await self._run(command, timeout)
 
     async def _run(self, command: str, timeout: Optional[int]) -> ToolResult:
         sentinel = "__MC_DONE_9742__"
-        wrapped  = f"({command}); echo \"EXIT:$?\"; echo {sentinel}\n"
+        wrapped  = _wrap(command, sentinel).encode()
 
         try:
             proc = await self._ensure_process()
             assert proc.stdin is not None and proc.stdout is not None
 
-            proc.stdin.write(wrapped.encode())
+            proc.stdin.write(wrapped)
             await proc.stdin.drain()
 
             lines: list[str] = []
@@ -128,9 +185,9 @@ class Bash(BaseTool):
             async def _read() -> None:
                 nonlocal exit_code
                 while True:
-                    line_bytes = await proc.stdout.readline()
-                    line = line_bytes.decode(errors="replace").rstrip("\n")
-                    if line == sentinel:
+                    raw  = await proc.stdout.readline()
+                    line = raw.decode(errors="replace").rstrip("\r\n")
+                    if line.strip() == sentinel:
                         break
                     if line.startswith("EXIT:"):
                         try:
@@ -140,7 +197,6 @@ class Bash(BaseTool):
                         continue
                     lines.append(line)
 
-            # timeout=None → asyncio.wait_for waits forever (task-complete behaviour)
             await asyncio.wait_for(_read(), timeout=timeout)
             output = "\n".join(lines)
 
@@ -150,32 +206,30 @@ class Bash(BaseTool):
                     error=(
                         f"Command exited with code {exit_code}.\n"
                         f"Output:\n{output}\n\n"
-                        "Review the error above and adjust your command."
+                        "Review the error and adjust your command."
                     ),
                 )
-            return ToolResult(output=output or "(command completed successfully, no output)")
+            return ToolResult(output=output or "(command completed, no output)")
 
         except asyncio.TimeoutError:
-            logger.warning(f"[bash] Deadline reached after {timeout}s — resetting session.")
+            logger.warning(f"[bash] Deadline reached after {timeout}s.")
             await self._reset_process()
             return ToolResult(
                 error=(
-                    f"Deadline reached after {timeout}s. Shell session was reset. "
-                    "Options: omit timeout to run until done, "
-                    "use background execution ('nohup ... &'), "
-                    "or split into smaller steps."
+                    f"Deadline reached after {timeout}s. Session reset. "
+                    "Omit timeout to run until done, or use background execution."
                 )
             )
         except BrokenPipeError:
             await self._reset_process()
-            return ToolResult(error="Shell session died unexpectedly. Session restarted — retry.")
+            return ToolResult(error="Shell session died. Restarted — retry.")
         except Exception as e:
-            return ToolResult(error=f"Bash error: {e}")
+            return ToolResult(error=f"Shell error: {e}")
 
     async def _ensure_process(self) -> asyncio.subprocess.Process:
         if self._process is None or self._process.returncode is not None:
             self._process = await asyncio.create_subprocess_shell(
-                "bash --norc --noprofile",
+                _shell_cmd(),
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.STDOUT,

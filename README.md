@@ -38,10 +38,15 @@ Multi-agent · PAORR loop · Universal LLM · WebSocket server · 3-tier permiss
 - [SQLite Session Logging](#-sqlite-session-logging)
 - [WebSocket Server & Web UI](#-websocket-server--web-ui)
 - [PAORR Loop & Tool Intelligence](#-paorr-loop--tool-intelligence)
-- [Installation](#-installation)
+- [Installation — Linux](#-installation--linux)
+- [Installation — macOS](#-installation--macos)
+- [Installation — Windows](#-installation--windows)
+- [Installation — Docker](#-installation--docker)
+- [Installation — Termux (Android)](#-installation--termux-android)
+- [Installation — pip](#-installation--pip)
+- [Building Standalone Executables](#-building-standalone-executables)
 - [Configuration](#-configuration)
 - [Usage](#-usage)
-- [Mobile & Termux](#-mobile--termux)
 - [Project Structure](#-project-structure)
 - [Contributing](#-contributing)
 - [License](#-license)
@@ -508,43 +513,205 @@ Scoring adapts across the run: tools that fail are penalised, recently-used tool
 
 ---
 
-## 🚀 Installation
+## 🐧 Installation — Linux
 
-### Requirements
+**One-liner (Ubuntu, Debian, Fedora, Arch, any distro):**
 
-- Python **3.10+**
-- pip or uv
-- (Optional) Playwright — browser automation
-- (Optional) uvicorn — WebSocket server
-- (Optional) Docker — for extra isolation (not required)
+```bash
+git clone https://github.com/The-JDdev/ManusClaw.git
+cd ManusClaw && bash install.sh
+```
 
-### Quick start
+Or manually:
 
 ```bash
 git clone https://github.com/The-JDdev/ManusClaw.git
 cd ManusClaw
-
-python -m venv .venv
-source .venv/bin/activate     # Windows: .venv\Scripts\activate
-
+python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-
-# Verify — zero credentials required
-python main.py "Print Hello from ManusClaw v3!"
+python main.py "Print Hello from ManusClaw!"
 ```
 
-### Install optional features
+After install the `manusclaw` command is available globally:
 
 ```bash
-# WebSocket server
-pip install uvicorn[standard] fastapi
-
-# Browser automation
-pip install playwright && playwright install chromium
-
-# Async HTTP (for Universal LLM mode)
-pip install aiohttp
+manusclaw "Write a Python web scraper for Hacker News"
 ```
+
+---
+
+## 🍎 Installation — macOS
+
+Works on **Intel** and **Apple Silicon (M1/M2/M3)**:
+
+```bash
+# Install Homebrew if not present
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+brew install python3 git
+
+git clone https://github.com/The-JDdev/ManusClaw.git
+cd ManusClaw && bash install.sh
+```
+
+Or manually:
+
+```bash
+git clone https://github.com/The-JDdev/ManusClaw.git
+cd ManusClaw
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+python main.py "Print Hello from ManusClaw!"
+```
+
+---
+
+## 🪟 Installation — Windows
+
+**Option A — One-click PowerShell installer:**
+
+```powershell
+# Run in PowerShell (as Administrator or normal user)
+Set-ExecutionPolicy Bypass -Scope Process -Force
+git clone https://github.com/The-JDdev/ManusClaw.git
+cd ManusClaw
+powershell -File install.ps1
+```
+
+After install, restart terminal and run:
+
+```cmd
+manusclaw "Your task here"
+```
+
+**Option B — Manual (PowerShell):**
+
+```powershell
+git clone https://github.com/The-JDdev/ManusClaw.git
+cd ManusClaw
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+python main.py "Print Hello from ManusClaw!"
+```
+
+> **Note:** On Windows, the `bash` tool uses **PowerShell** automatically. All other tools work identically across platforms.
+
+---
+
+## 🐳 Installation — Docker
+
+No Python setup required — just Docker:
+
+```bash
+# Clone and build
+git clone https://github.com/The-JDdev/ManusClaw.git
+cd ManusClaw
+
+# Copy and edit config
+cp config.toml.example config.toml   # or create config.toml manually
+nano config.toml                     # add your API key
+
+# Run a one-shot task
+docker compose run --rm manusclaw "Write a Python web scraper"
+
+# Start the WebSocket server (background)
+docker compose --profile server up -d
+
+# Run the multi-agent pipeline
+docker compose --profile multi run --rm multi-agent "Build a REST API"
+```
+
+**Without docker-compose:**
+
+```bash
+docker build -t manusclaw .
+
+# CLI
+docker run -it --rm \
+  -v $(pwd)/config.toml:/manusclaw/config.toml:ro \
+  -v manusclaw-workspace:/manusclaw/workspace \
+  manusclaw "Your task here"
+
+# Server
+docker run -d \
+  -p 8765:8765 \
+  -v $(pwd)/config.toml:/manusclaw/config.toml:ro \
+  -v manusclaw-workspace:/manusclaw/workspace \
+  --name manusclaw-server \
+  manusclaw python run_server.py --host 0.0.0.0 --port 8765
+```
+
+---
+
+## 📱 Installation — Termux (Android)
+
+Run ManusClaw on your Android phone — no root, no PC needed:
+
+```bash
+# Inside Termux
+git clone https://github.com/The-JDdev/ManusClaw.git
+cd ManusClaw && bash setup-termux.sh
+```
+
+Then in a new Termux session:
+
+```bash
+manusclaw "Your task here"
+```
+
+**Connect to Ollama on your PC (same WiFi):**
+
+```toml
+# config.toml
+[llm]
+base_url = "http://192.168.1.X:11434/v1"
+api_key  = "none"
+model    = "llama3.2:3b"
+```
+
+---
+
+## 📦 Installation — pip
+
+Install directly from GitHub as a Python package:
+
+```bash
+pip install git+https://github.com/The-JDdev/ManusClaw.git
+```
+
+Or with optional extras:
+
+```bash
+pip install "git+https://github.com/The-JDdev/ManusClaw.git#egg=manusclaw[all]"
+```
+
+This installs the `manusclaw`, `manusclaw-server`, and `manusclaw-multi` CLI commands globally.
+
+---
+
+## 🏗️ Building Standalone Executables
+
+Build a single-file executable for your platform (no Python required to run):
+
+```bash
+# Install build deps
+pip install pyinstaller
+
+# Build for current platform
+python build_release.py
+```
+
+Output goes to `release/`:
+
+```
+release/
+├── manusclaw-v3.1.0-linux-x86_64        ← Linux binary
+├── manusclaw-v3.1.0-darwin-arm64        ← macOS Apple Silicon binary
+├── manusclaw-v3.1.0-windows-amd64.exe   ← Windows binary
+└── manusclaw-v3.1.0-*.zip               ← Zip archives
+```
+
+**To build for all platforms** — run `python build_release.py` on each platform separately, then upload the binaries to your [GitHub Releases](https://github.com/The-JDdev/ManusClaw/releases/new) page manually.
 
 ---
 

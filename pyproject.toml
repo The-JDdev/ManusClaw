@@ -1,0 +1,78 @@
+[build-system]
+requires      = ["setuptools>=70", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name        = "manusclaw"
+version     = "3.1.0"
+description = "ManusClaw — Open-source autonomous AI agent framework"
+readme      = "README.md"
+license     = { file = "LICENSE" }
+requires-python = ">=3.10"
+authors     = [{ name = "The-JDdev (SHS Shobuj)", email = "jddev@manusclaw.ai" }]
+keywords    = ["ai", "agent", "llm", "autonomous", "gpt", "claude", "ollama", "openai"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+]
+dependencies = [
+    "pydantic>=2.7,<3",
+    "loguru>=0.7",
+    "tomli>=2.0; python_version < '3.11'",
+    "openai>=1.30",
+    "anthropic>=0.28",
+    "tiktoken>=0.7",
+    "aiohttp>=3.9",
+    "duckduckgo-search>=6.2",
+    "fastapi>=0.111",
+    "uvicorn[standard]>=0.30",
+]
+
+[project.optional-dependencies]
+browser   = ["playwright>=1.44"]
+crawl     = ["crawl4ai>=0.3"]
+viz       = ["matplotlib>=3.9", "mpld3>=0.5.10"]
+google    = ["google-generativeai>=0.7"]
+build     = ["pyinstaller>=6.0", "pyinstaller-hooks-contrib>=2024"]
+dev       = ["pytest>=8", "ruff", "black", "mypy"]
+all       = [
+    "playwright>=1.44",
+    "crawl4ai>=0.3",
+    "matplotlib>=3.9",
+    "mpld3>=0.5.10",
+    "google-generativeai>=0.7",
+]
+
+[project.scripts]
+manusclaw       = "main:cli_entry"
+manusclaw-server= "run_server:main"
+manusclaw-multi = "run_multi_agent:main"
+
+[project.urls]
+Homepage      = "https://github.com/The-JDdev/ManusClaw"
+Documentation = "https://github.com/The-JDdev/ManusClaw#readme"
+Repository    = "https://github.com/The-JDdev/ManusClaw"
+Issues        = "https://github.com/The-JDdev/ManusClaw/issues"
+Changelog     = "https://github.com/The-JDdev/ManusClaw/releases"
+
+[tool.setuptools.packages.find]
+where   = ["."]
+include = ["app*"]
+
+[tool.black]
+line-length    = 100
+target-version = ["py310", "py311", "py312"]
+
+[tool.ruff]
+line-length = 100
+select      = ["E", "F", "I", "UP"]
+ignore      = ["E501"]
