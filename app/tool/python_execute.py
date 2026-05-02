@@ -1,28 +1,29 @@
 from __future__ import annotations
 
 """
-PythonExecute — isolated Python code execution.
+PythonExecute — isolated Python code execution via multiprocessing.
 
-Philosophy: The agent runs until the task is DONE.
-No artificial output caps. No artificial time limits.
-Only catastrophic OS operations are hard-blocked.
+Runtime philosophy: TASK-COMPLETE, NOT TIME-BOXED.
+  The agent runs until the work is done — period.
+  Pass timeout=None (or omit it) → subprocess runs until it finishes naturally.
+  Pass timeout=N → killed after exactly N seconds if still running.
+  2-minute scripts run 2 minutes. 3-hour training jobs run 3 hours.
+  There is no DEFAULT and no MAX cap.
 
-Isolation: multiprocessing.Process (separate memory space).
-Memory:    2 GB virtual — enough for real ML/data work.
-CPU time:  No wall-clock cap. Agent sets its own timeout.
-Output:    Full output always returned. No byte truncation.
+Isolation:
+  Each execution runs in a separate multiprocessing.Process (own memory space).
+  2 GB virtual memory rlimit applied (prevents OOM from killing the host).
+
+Output:
+  Full stdout+stderr always returned — no byte truncation, ever.
+  The agent needs complete output to reason, debug, and iterate correctly.
 
 Blocked (hard deny):
-  fork bombs, writing to /dev/sda, os.execv to destructive binaries
+  fork bombs, writing directly to /dev/sda, os.execv to /bin/rm /
 
 Permitted (everything else):
-  All imports, filesystem ops, network calls, subprocesses,
-  ML training, data processing, long computations, crawlers.
-
-Timeouts:
-  DEFAULT_TIMEOUT = 3600s  (1 hour)
-  MAX_TIMEOUT     = 86400s (24 hours — model training, batch jobs)
-  Agent may specify any value up to 24h.
+  All imports, ML training, data pipelines, network calls,
+  filesystem operations, subprocesses, long computations.
 """
 
 import multiprocessing
@@ -30,24 +31,21 @@ import queue
 import sys
 import traceback
 from io import StringIO
-from typing import Any
+from typing import Any, Optional
 
 from app.schema import ToolResult
 from app.tool.base import BaseTool
 
 
 # ---------------------------------------------------------------------------
-# Limits — unlimited output, task-duration timeouts
+# Resource limits (OS-level, applied inside the subprocess)
 # ---------------------------------------------------------------------------
 
-DEFAULT_TIMEOUT  = 3600      # 1 hour
-MAX_TIMEOUT      = 86400     # 24 hours
-MIN_TIMEOUT      = 1
-MAX_MEMORY_BYTES = 2 * 1024 * 1024 * 1024   # 2 GB virtual memory (rlimit)
+MAX_MEMORY_BYTES = 2 * 1024 * 1024 * 1024   # 2 GB virtual memory
 
 
 # ---------------------------------------------------------------------------
-# Worker subprocess
+# Worker subprocess — runs inside a separate process
 # ---------------------------------------------------------------------------
 
 def _worker(code: str, result_queue: multiprocessing.Queue) -> None:
@@ -85,12 +83,12 @@ class PythonExecute(BaseTool):
     name = "python_execute"
     description = (
         "Execute Python code in an isolated subprocess with full system access. "
-        f"Default timeout: {DEFAULT_TIMEOUT}s (1h). "
-        f"Max timeout: {MAX_TIMEOUT}s (24h) for training runs, batch jobs, crawlers. "
-        "Full output always returned — no truncation. "
-        "All imports, filesystem, network, subprocess, ML ops are permitted. "
+        "Runs until completion — no artificial time limit. "
+        "Optionally pass timeout=N (seconds) to kill after exactly N seconds. "
+        "Full output always returned — no truncation, ever. "
+        "All imports, filesystem, network, subprocess, and ML ops are permitted. "
         "Use print() to capture output. "
-        "Only fork bombs and /dev/sda writes are blocked."
+        "Only fork bombs and direct /dev/sda writes are blocked."
     )
     parameters = {
         "type": "object",
@@ -102,22 +100,29 @@ class PythonExecute(BaseTool):
             "timeout": {
                 "type": "integer",
                 "description": (
-                    f"Timeout in seconds. Default {DEFAULT_TIMEOUT}s (1h). "
-                    f"Max {MAX_TIMEOUT}s (24h) for long-running tasks. "
-                    "Set higher for ML training, large data processing."
+                    "Optional. Kill subprocess after this many seconds if still running. "
+                    "Omit (or pass null) to run until the code naturally completes — "
+                    "2 min scripts run 2 min, 3 hour training runs run 3 hours. "
+                    "Only set this if you explicitly need a hard deadline."
                 ),
-                "default": DEFAULT_TIMEOUT,
             },
         },
         "required": ["code"],
     }
 
-    async def execute(self, code: str, timeout: int = DEFAULT_TIMEOUT, **_: Any) -> ToolResult:
-        timeout = max(MIN_TIMEOUT, min(timeout, MAX_TIMEOUT))
-
+    async def execute(
+        self,
+        code: str,
+        timeout: Optional[int] = None,
+        **_: Any,
+    ) -> ToolResult:
         result_queue: multiprocessing.Queue = multiprocessing.Queue()
-        proc = multiprocessing.Process(target=_worker, args=(code, result_queue), daemon=True)
+        proc = multiprocessing.Process(
+            target=_worker, args=(code, result_queue), daemon=True
+        )
         proc.start()
+
+        # timeout=None → join waits forever until the subprocess finishes
         proc.join(timeout=timeout)
 
         if proc.is_alive():
@@ -127,17 +132,20 @@ class PythonExecute(BaseTool):
                 proc.kill()
             return ToolResult(
                 error=(
-                    f"Execution timed out after {timeout}s. "
-                    "Consider: increasing timeout (max 86400s = 24h), "
-                    "adding progress checkpoints, running in background via bash, "
-                    "or splitting the task into smaller steps."
+                    f"Deadline reached after {timeout}s. "
+                    "Options: omit timeout to run until done, "
+                    "add progress checkpoints (print statements), "
+                    "run via bash tool with 'nohup python3 script.py &', "
+                    "or split the task into smaller steps."
                 )
             )
 
         try:
             result = result_queue.get_nowait()
         except queue.Empty:
-            return ToolResult(error="Subprocess crashed with no result. Check for memory errors or OS-level issues.")
+            return ToolResult(
+                error="Subprocess exited with no result — likely a memory error or OS-level crash."
+            )
 
         output = (result.get("output") or "").strip()
         error  = result.get("error")
@@ -147,4 +155,4 @@ class PythonExecute(BaseTool):
                 output=output or None,
                 error=f"Python error:\n{error}\n\nAnalyse the traceback and fix the code.",
             )
-        return ToolResult(output=output or "(code ran successfully, no output)")
+        return ToolResult(output=output or "(code completed successfully, no output)")

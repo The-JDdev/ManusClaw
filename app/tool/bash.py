@@ -3,26 +3,22 @@ from __future__ import annotations
 """
 Bash — persistent async shell session.
 
-Philosophy: The agent runs until the task is DONE.
-No artificial output caps. No artificial time limits.
-Only catastrophic OS-destroying operations are hard-blocked.
+Runtime philosophy: TASK-COMPLETE, NOT TIME-BOXED.
+  The agent runs until the work is done — period.
+  If a task needs 2 minutes, it runs 2 minutes.
+  If it needs 3 hours, it runs 3 hours.
+  There is no DEFAULT timeout and no MAX cap.
+  Pass timeout=None (or omit it) → runs until completion, no kill.
+  Pass timeout=N   → kills after exactly N seconds if still running.
 
-Blocked (hard deny, unconditional — these destroy the OS itself):
-  rm -rf /   rm -rf /*   fork bombs   dd to block devices   mkfs   wipefs   kill -9 -1
+Blocked (hard deny — OS-destroying operations only):
+  rm -rf /   rm -rf /*   fork bombs   dd to block devices
+  mkfs       wipefs      kill -9 -1   shred /bin|/usr|/boot
 
-Permitted (everything else — no exceptions):
-  sudo, apt, pip, npm, cargo, go, git, curl, wget, ssh, docker, systemctl,
-  crontab, env edits, /etc edits, /usr edits, long-running compiles, training
-  runs, crawlers, scrapers, batch jobs, automation pipelines, etc.
-
-Timeouts:
-  DEFAULT_TIMEOUT = 3600   (1 hour — enough for most tasks)
-  MAX_TIMEOUT     = 86400  (24 hours — for overnight jobs, model training, etc.)
-  The agent MAY pass any timeout up to 24h. No cap below that.
-
-Output:
-  No byte cap. Full output is always returned.
-  The agent needs complete output to reason correctly — truncation is a bug.
+Everything else is permitted with zero restriction:
+  sudo, apt, pip, npm, cargo, git, curl, wget, ssh, docker,
+  systemctl, crontab, /etc edits, compiles, crawlers, ML jobs,
+  batch pipelines, overnight automation — all fully allowed.
 """
 
 import asyncio
@@ -35,19 +31,14 @@ from app.tool.base import BaseTool
 
 
 # ---------------------------------------------------------------------------
-# Limits — task-complete, not toy-safe
+# Catastrophic blacklist — the ONLY restriction in this tool
 # ---------------------------------------------------------------------------
 
-DEFAULT_TIMEOUT = 3600    # 1 hour
-MAX_TIMEOUT     = 86400   # 24 hours — overnight jobs, training runs
-MIN_TIMEOUT     = 1
-
-# Catastrophic patterns — the ONLY things blocked, ever
 _CATASTROPHIC = [
     r"rm\s+-[rRf]+\s+/\s*$",
     r"rm\s+-[rRf]+\s+/\*",
     r"rm\s+--no-preserve-root",
-    r":\(\)\s*\{.*:\|:.*\}",
+    r":\(\)\s*\{.*:\|:.*\}",                      # fork bomb
     r"dd\s+if=/dev/zero\s+of=/dev/(s|h|v|xv)d\b",
     r">\s*/dev/(s|h|v|xv)d[a-z]\b",
     r"mkfs\.",
@@ -69,11 +60,11 @@ class Bash(BaseTool):
     name = "bash"
     description = (
         "Execute shell commands in a persistent bash session. "
-        f"Default timeout: {DEFAULT_TIMEOUT}s ({DEFAULT_TIMEOUT // 3600}h). "
-        f"Max timeout: {MAX_TIMEOUT}s ({MAX_TIMEOUT // 3600}h) for overnight jobs. "
-        "Full output always returned — no truncation. "
-        "Environment, working directory, and variables persist across calls. "
-        "Full system access: sudo, apt, pip, git, curl, systemctl, docker, etc. "
+        "Runs until completion — no artificial time limit. "
+        "Optionally pass timeout=N (seconds) to kill after exactly N seconds. "
+        "Full output always returned — no byte truncation, ever. "
+        "Environment, working directory, and shell variables persist across calls. "
+        "Full system access: sudo, apt, pip, git, curl, docker, systemctl, etc. "
         "Only OS-destroying commands (rm -rf /, fork bombs, mkfs) are blocked."
     )
     parameters = {
@@ -86,11 +77,11 @@ class Bash(BaseTool):
             "timeout": {
                 "type": "integer",
                 "description": (
-                    f"Timeout in seconds. Default {DEFAULT_TIMEOUT}s (1h). "
-                    f"Max {MAX_TIMEOUT}s (24h) for long-running jobs. "
-                    "Set higher for compiles, training runs, crawlers."
+                    "Optional. Kill after this many seconds if still running. "
+                    "Omit (or pass null) to run until the task naturally completes — "
+                    "2 min tasks run 2 min, 3 hour jobs run 3 hours. "
+                    "Only set this if you explicitly need a deadline."
                 ),
-                "default": DEFAULT_TIMEOUT,
             },
         },
         "required": ["command"],
@@ -100,26 +91,29 @@ class Bash(BaseTool):
         self._process: Optional[asyncio.subprocess.Process] = None
         self._lock = asyncio.Lock()
 
-    async def execute(self, command: str, timeout: int = DEFAULT_TIMEOUT, **_: Any) -> ToolResult:
-        timeout = max(MIN_TIMEOUT, min(timeout, MAX_TIMEOUT))
-
+    async def execute(
+        self,
+        command: str,
+        timeout: Optional[int] = None,
+        **_: Any,
+    ) -> ToolResult:
         bad = _is_catastrophic(command)
         if bad:
             return ToolResult(
                 error=(
-                    f"BLOCKED — catastrophic OS-destroying pattern: `{bad}`\n"
+                    f"BLOCKED — catastrophic OS-destroying pattern matched: `{bad}`\n"
                     "This is the ONLY category of blocked commands. "
-                    "Everything else (sudo, rm -rf subdirs, system edits, network, docker) "
-                    "is fully permitted."
+                    "All other system operations (sudo, rm -rf subdirs, network, "
+                    "docker, /etc edits) are fully permitted."
                 )
             )
 
         async with self._lock:
             return await self._run(command, timeout)
 
-    async def _run(self, command: str, timeout: int) -> ToolResult:
+    async def _run(self, command: str, timeout: Optional[int]) -> ToolResult:
         sentinel = "__MC_DONE_9742__"
-        wrapped = f"({command}); echo \"EXIT:$?\"; echo {sentinel}\n"
+        wrapped  = f"({command}); echo \"EXIT:$?\"; echo {sentinel}\n"
 
         try:
             proc = await self._ensure_process()
@@ -146,6 +140,7 @@ class Bash(BaseTool):
                         continue
                     lines.append(line)
 
+            # timeout=None → asyncio.wait_for waits forever (task-complete behaviour)
             await asyncio.wait_for(_read(), timeout=timeout)
             output = "\n".join(lines)
 
@@ -158,15 +153,15 @@ class Bash(BaseTool):
                         "Review the error above and adjust your command."
                     ),
                 )
-            return ToolResult(output=output or "(command ran successfully, no output)")
+            return ToolResult(output=output or "(command completed successfully, no output)")
 
         except asyncio.TimeoutError:
-            logger.warning(f"[bash] Command timed out after {timeout}s. Resetting session.")
+            logger.warning(f"[bash] Deadline reached after {timeout}s — resetting session.")
             await self._reset_process()
             return ToolResult(
                 error=(
-                    f"Command timed out after {timeout}s. Shell session was reset. "
-                    f"Increase timeout (max {MAX_TIMEOUT}s = 24h), "
+                    f"Deadline reached after {timeout}s. Shell session was reset. "
+                    "Options: omit timeout to run until done, "
                     "use background execution ('nohup ... &'), "
                     "or split into smaller steps."
                 )
