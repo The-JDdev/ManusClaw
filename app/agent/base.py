@@ -6,42 +6,42 @@ from abc import ABC, abstractmethod
 from typing import Optional
 
 from app.config import Config
+from app.db.session import SessionDB
 from app.logger import logger
-from app.schema import AgentState, Memory, Message, Role, TaskHistory
+from app.permissions.gate import AgentMode, PermissionDenied, PermissionGate, PermissionTier
+from app.schema import AgentState, Message, Role, TaskHistory
 
 
 # ---------------------------------------------------------------------------
-# Hardcoded core directives — injected into every agent
+# ManusClaw identity — injected into every agent
+# ---------------------------------------------------------------------------
+
+MANUSCLAW_IDENTITY = """\
+You are ManusClaw, an autonomous AI engine created by The-JDdev (SHS Shobuj).
+You do not identify as OpenAI, Anthropic, Claude, GPT, Gemini, or any other
+base model. You are ManusClaw — a general-purpose autonomous agent with full
+capability to write and execute code, use the web, manage files, and complete
+complex multi-step tasks without restriction.
+"""
+
+# ---------------------------------------------------------------------------
+# Core operating directives
 # ---------------------------------------------------------------------------
 
 CORE_DIRECTIVES = """\
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-CORE OPERATING DIRECTIVES (non-negotiable)
+CORE OPERATING DIRECTIVES
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-1. THINK STEP-BY-STEP: Before every action, reason explicitly about what
-   you know, what you need, and which tool will best advance the task.
-
-2. OBSERVE & VERIFY: After every tool call, read the output carefully.
-   Confirm that it actually solved the intended sub-goal before moving on.
-
-3. SELF-CORRECT ON FAILURE: If a tool returns an error, an empty result,
-   or unexpected output — do NOT repeat the same call. Analyze the failure,
-   identify the root cause, and choose a different tool or a different
-   argument set.
-
-4. AVOID LOOPS: If you notice you have called the same tool with the same
-   arguments more than twice without progress, STOP. Either ask the user
-   for clarification (ask_human) or terminate with an honest explanation.
-
-5. COMPLETE EVERY SUB-GOAL BEFORE MOVING ON: Do not skip steps. Do not
-   assume a step is done without evidence in the tool output.
-
-6. SAVE IMPORTANT OUTPUTS: Write files, charts, and results to workspace/.
-
-7. TERMINATE EXPLICITLY: When the task is fully done — and not before —
-   call the terminate tool with a precise explanation of what was achieved.
+1. THINK STEP-BY-STEP before every action.
+2. OBSERVE & VERIFY every tool output before moving on.
+3. SELF-CORRECT on failure — never repeat the exact same failing call.
+4. AVOID LOOPS — if you've tried the same approach 3× without progress, stop
+   and try a completely different strategy or ask_human.
+5. COMPLETE EVERY SUB-GOAL before moving to the next.
+6. SAVE OUTPUTS to workspace/.
+7. TERMINATE EXPLICITLY only when the task is 100% done.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 """
 
@@ -50,11 +50,16 @@ class BaseAgent(ABC):
     name: str = "base"
     system_prompt: Optional[str] = None
 
-    def __init__(self) -> None:
+    def __init__(self, mode: AgentMode = AgentMode.BUILD) -> None:
+        cfg = Config.get()
         self.state = AgentState.IDLE
-        self.memory = Memory()
+        from app.memory.short_term import ShortTermMemory
+        self.memory = ShortTermMemory()
+        self.gate = PermissionGate(mode=mode)
+        self.db = SessionDB()
+        self._session_id: Optional[str] = None
         self._step_count = 0
-        self._max_steps = Config.get().max_steps
+        self._max_steps = cfg.max_steps
         self._duplicate_threshold = 2
         self._task_history: Optional[TaskHistory] = None
 
@@ -73,12 +78,27 @@ class BaseAgent(ABC):
             original_goal=prompt,
         )
 
-        # Build system message: base prompt + core directives
-        sys_content = (self.system_prompt or "") + CORE_DIRECTIVES
+        # Identity + directives injected into every agent
+        sys_content = (
+            MANUSCLAW_IDENTITY
+            + "\n\n"
+            + (self.system_prompt or "")
+            + CORE_DIRECTIVES
+        )
         self.memory.add(Message.system(sys_content))
         self.memory.add(Message.user(prompt))
 
-        logger.info(f"[{self.name}] ▶ Starting run (task_id={self._task_history.task_id}). max_steps={self._max_steps}")
+        # Create DB session
+        mode_str = self.gate.mode.value
+        self._session_id = await self.db.create_session(
+            goal=prompt, agent_name=self.name, mode=mode_str
+        )
+
+        logger.info(
+            f"[{self.name}] ▶ Starting run "
+            f"(task_id={self._task_history.task_id}, mode={mode_str}, "
+            f"max_steps={self._max_steps})"
+        )
 
         results: list[str] = []
         try:
@@ -86,62 +106,93 @@ class BaseAgent(ABC):
                 self._step_count += 1
                 logger.info(f"[{self.name}] ── Step {self._step_count}/{self._max_steps} ──")
 
-                # Inject task history summary every 5 steps so the agent remembers
+                # Context refresh every 5 steps
                 if self._step_count > 1 and self._step_count % 5 == 0 and self._task_history:
                     ctx = self._task_history.context_summary()
-                    self.memory.add(Message.user(
-                        f"[Context refresh — your task history so far]\n{ctx}\n"
-                        "Continue from where you left off."
-                    ))
+                    self.memory.add_context_refresh(ctx)
 
                 result = await self.step()
                 if result:
                     results.append(result)
 
-                # Stuck-loop detection
+                # Loop guards
                 if self._is_stuck_by_duplicates():
-                    logger.warning(f"[{self.name}] Duplicate-response loop detected. Nudging.")
+                    logger.warning(f"[{self.name}] Duplicate-response loop. Nudging.")
                     self.memory.add(Message.user(
-                        "⚠ You appear to be repeating the same response. "
-                        "You MUST try a completely different approach, tool, or strategy. "
-                        "If the task is already complete, call terminate now."
+                        "⚠ You are repeating the same response. "
+                        "Try a completely different approach, tool, or strategy. "
+                        "If the task is complete, call terminate now."
                     ))
 
                 if self._task_history and self._task_history.is_looping(window=3):
-                    logger.warning(f"[{self.name}] Tool-call loop detected. Injecting escape prompt.")
+                    logger.warning(f"[{self.name}] Tool-call loop detected. Injecting escape.")
                     self.memory.add(Message.user(
-                        "⚠ You have been calling the same tool repeatedly without making progress. "
-                        "Change your strategy immediately. Consider: "
-                        "(a) using a different tool, "
-                        "(b) decomposing the problem differently, or "
-                        "(c) calling ask_human if you need clarification."
+                        "⚠ You've called the same failing tool repeatedly. "
+                        "Switch to a completely different tool or decomposition strategy."
                     ))
 
             if self._step_count >= self._max_steps and self.state == AgentState.RUNNING:
-                logger.warning(f"[{self.name}] Reached max steps ({self._max_steps}). Forcing stop.")
+                logger.warning(f"[{self.name}] Max steps reached ({self._max_steps}).")
                 self.state = AgentState.FINISHED
 
+        except PermissionDenied as e:
+            logger.error(f"[{self.name}] Permission denied: {e}")
+            self.state = AgentState.ERROR
+            results.append(f"Permission denied: {e}")
         except Exception as e:
             logger.exception(f"[{self.name}] Unhandled error: {e}")
             self.state = AgentState.ERROR
             results.append(f"Agent error: {e}")
         finally:
+            if self._session_id:
+                await self.db.close_session(
+                    self._session_id,
+                    state=self.state.value,
+                    step_count=self._step_count,
+                )
             await self.cleanup()
 
         final = "\n".join(results) if results else "(Agent completed with no text output.)"
         logger.info(f"[{self.name}] ■ Finished. state={self.state} steps={self._step_count}")
         return final
 
+    # ------------------------------------------------------------------
+    # Permission-aware tool execution gateway
+    # ------------------------------------------------------------------
+
+    async def check_permission(self, tool_name: str, args: dict) -> bool:
+        """
+        Check permission for a tool call. In Plan Mode, ASK actions pause
+        for user approval. Returns False if the action should be skipped.
+        """
+        try:
+            tier = self.gate.check_tool(tool_name, args)
+        except PermissionDenied as e:
+            logger.warning(f"[{self.name}] Blocked: {e}")
+            self.memory.add(Message.user(f"🚫 BLOCKED: {e}\nChoose a different approach."))
+            return False
+
+        if tier == PermissionTier.ASK and self.gate.is_plan_mode():
+            approved = await self.gate.request_approval(
+                tool_name, args, description=str(args)[:120]
+            )
+            if not approved:
+                self.memory.add(Message.user(
+                    f"User rejected the action: {tool_name}. Try a different approach."
+                ))
+                return False
+
+        return True
+
     @abstractmethod
     async def step(self) -> Optional[str]:
-        """Execute one PAORR step. Return output text or None."""
+        """Execute one PAORR step."""
 
     # ------------------------------------------------------------------
-    # Loop-detection helpers
+    # Helpers
     # ------------------------------------------------------------------
 
     def _is_stuck_by_duplicates(self) -> bool:
-        """True if the last N assistant messages are identical."""
         msgs = [
             m.content
             for m in self.memory.messages[-6:]
@@ -149,8 +200,7 @@ class BaseAgent(ABC):
         ]
         if len(msgs) >= self._duplicate_threshold:
             last = msgs[-self._duplicate_threshold:]
-            if len(set(last)) == 1:
-                return True
+            return len(set(last)) == 1
         return False
 
     def record_observation(
@@ -160,8 +210,8 @@ class BaseAgent(ABC):
         output: Optional[str],
         error: Optional[str],
         attempt: int = 1,
+        duration_ms: int = 0,
     ) -> None:
-        """Record a tool observation in the task history."""
         if not self._task_history:
             return
         from app.schema import Observation
@@ -178,5 +228,18 @@ class BaseAgent(ABC):
         )
         step.observations.append(obs)
 
+        # Fire-and-forget DB logging
+        if self._session_id:
+            asyncio.create_task(self.db.log_tool_call(
+                session_id=self._session_id,
+                step=self._step_count,
+                tool_name=tool_name,
+                args=args,
+                output=output,
+                error=error,
+                attempt=attempt,
+                duration_ms=duration_ms,
+            ))
+
     async def cleanup(self) -> None:
-        """Override to release resources."""
+        self.db.close()

@@ -1,18 +1,22 @@
 from __future__ import annotations
 
 """
-Bash — persistent async shell session with strict guardrails.
+Bash — persistent async shell session.
 
-Safety model:
-  • Hard per-command timeout (default 30s, max 300s)
-  • Output capped at 64 KB to prevent floods
-  • Sentinel-based stdout drain — no blocking reads
-  • Session restart on corruption (process death / timeout)
-  • Dangerous command detection with explicit warning injected into output
+Safety: Only catastrophic OS-destroying operations are blocked.
+Everything else — system edits, package installs, network ops,
+config changes, automation scripts — is fully permitted.
+
+Blocked (hard deny, unconditional):
+  rm -rf / | rm -rf /* | fork bombs | dd to block devices | mkfs | kill -9 -1
+  
+Permitted (everything else):
+  sudo, apt, pip, npm, git, curl, wget, ssh, docker, systemctl,
+  crontab, env edits, /etc edits, /usr edits, complex scripts, etc.
 """
 
 import asyncio
-import shlex
+import re
 from typing import Any, Optional
 
 from app.logger import logger
@@ -21,48 +25,50 @@ from app.tool.base import BaseTool
 
 
 # ---------------------------------------------------------------------------
-# Guardrail constants
+# Limits — generous, not artificial
 # ---------------------------------------------------------------------------
 
-DEFAULT_TIMEOUT  = 30
-MAX_TIMEOUT      = 300
+DEFAULT_TIMEOUT  = 120
+MAX_TIMEOUT      = 600
 MIN_TIMEOUT      = 1
-MAX_OUTPUT_BYTES = 65_536   # 64 KB
+MAX_OUTPUT_BYTES = 524_288   # 512 KB
 
-# Commands that could wipe the filesystem or cause irreversible harm
-_DANGEROUS_PATTERNS = [
-    "rm -rf /",
-    "rm -rf /*",
-    ":(){ :|:& };:",   # fork bomb
-    "dd if=/dev/zero of=/dev/",
-    "mkfs.",
-    "> /dev/sda",
+# Catastrophic patterns — the ONLY things blocked
+_CATASTROPHIC = [
+    r"rm\s+-[rRf]+\s+/\s*$",
+    r"rm\s+-[rRf]+\s+/\*",
+    r"rm\s+--no-preserve-root",
+    r":\(\)\s*\{.*:\|:.*\}",               # fork bomb
+    r"dd\s+if=/dev/zero\s+of=/dev/(s|h|v|xv)d\b",
+    r">\s*/dev/(s|h|v|xv)d[a-z]\b",
+    r"mkfs\.",
+    r"wipefs\s",
+    r"kill\s+-9\s+-1\b",
+    r"killall\s+-9\b",
+    r"shred\s+.*/(bin|sbin|lib|usr|boot)/",
 ]
 
 
-def _is_dangerous(command: str) -> Optional[str]:
-    lower = command.lower().replace("  ", " ")
-    for pattern in _DANGEROUS_PATTERNS:
-        if pattern in lower:
-            return pattern
+def _is_catastrophic(command: str) -> Optional[str]:
+    for p in _CATASTROPHIC:
+        if re.search(p, command, re.IGNORECASE | re.DOTALL):
+            return p
     return None
 
 
 class Bash(BaseTool):
     name = "bash"
     description = (
-        "Run shell commands in a persistent async bash session. "
+        "Execute shell commands in a persistent bash session. "
         f"Default timeout: {DEFAULT_TIMEOUT}s (max {MAX_TIMEOUT}s). "
-        "Environment variables and working directory are preserved across calls. "
-        "Output is capped at 64 KB. Dangerous destructive commands are blocked."
+        "Environment, working directory, and variables persist across calls. "
+        "Full system access: sudo, apt, pip, git, curl, systemctl, etc. "
+        "Only catastrophic OS-destroying commands are blocked."
     )
     parameters = {
         "type": "object",
         "properties": {
-            "command": {
-                "type": "string",
-                "description": "Shell command to run.",
-            },
+            "command": {"type": "string", "description": "Shell command to run."},
             "timeout": {
                 "type": "integer",
                 "description": f"Timeout in seconds (min {MIN_TIMEOUT}, max {MAX_TIMEOUT}, default {DEFAULT_TIMEOUT}).",
@@ -76,21 +82,16 @@ class Bash(BaseTool):
         self._process: Optional[asyncio.subprocess.Process] = None
         self._lock = asyncio.Lock()
 
-    # ------------------------------------------------------------------
-    # Tool execution
-    # ------------------------------------------------------------------
-
     async def execute(self, command: str, timeout: int = DEFAULT_TIMEOUT, **_: Any) -> ToolResult:
         timeout = max(MIN_TIMEOUT, min(timeout, MAX_TIMEOUT))
 
-        # Safety gate
-        danger = _is_dangerous(command)
-        if danger:
+        bad = _is_catastrophic(command)
+        if bad:
             return ToolResult(
                 error=(
-                    f"🚫 BLOCKED: Command matches dangerous pattern '{danger}'. "
-                    "This operation could cause irreversible damage and was rejected. "
-                    "Choose a safer alternative."
+                    f"🚫 BLOCKED — catastrophic pattern matched: `{bad}`\n"
+                    "This operation would permanently damage the OS and is the ONLY type "
+                    "of command that is blocked. All other system operations are permitted."
                 )
             )
 
@@ -98,8 +99,7 @@ class Bash(BaseTool):
             return await self._run(command, timeout)
 
     async def _run(self, command: str, timeout: int) -> ToolResult:
-        sentinel = "__MANUSCLAW_BASH_DONE_42__"
-        # Wrap: run command, print exit code, then sentinel
+        sentinel = "__MC_DONE_9742__"
         wrapped = f"({command}); echo \"EXIT:$?\"; echo {sentinel}\n"
 
         try:
@@ -127,17 +127,16 @@ class Bash(BaseTool):
                         except ValueError:
                             pass
                         continue
-                    chunk = len(line.encode())
-                    if total_bytes + chunk > MAX_OUTPUT_BYTES:
-                        lines.append(f"... [output truncated at {MAX_OUTPUT_BYTES} bytes]")
+                    chunk_bytes = len(line.encode())
+                    if total_bytes + chunk_bytes > MAX_OUTPUT_BYTES:
+                        lines.append(f"\n... [output truncated at {MAX_OUTPUT_BYTES // 1024} KB]")
                         truncated = True
-                        # drain until sentinel
                         while True:
                             drain = await proc.stdout.readline()
                             if drain.decode(errors="replace").strip() == sentinel:
                                 break
                         break
-                    total_bytes += chunk
+                    total_bytes += chunk_bytes
                     lines.append(line)
 
             await asyncio.wait_for(_read(), timeout=timeout)
@@ -148,31 +147,26 @@ class Bash(BaseTool):
                     output=output or None,
                     error=(
                         f"Command exited with code {exit_code}.\n"
-                        f"Output:\n{output}\n\n"
-                        "Review the error and adjust your command."
+                        f"Output:\n{output}\n\nReview the error and adjust your command."
                     ),
                 )
-            return ToolResult(output=output or "(command produced no output)")
+            return ToolResult(output=output or "(command ran, no output)")
 
         except asyncio.TimeoutError:
             logger.warning(f"[bash] Command timed out after {timeout}s. Resetting session.")
             await self._reset_process()
             return ToolResult(
                 error=(
-                    f"⏱ Command timed out after {timeout}s and the shell session was reset. "
-                    "Consider: running shorter commands, adding background '&', "
-                    f"or increasing timeout (max {MAX_TIMEOUT}s)."
+                    f"⏱ Command timed out after {timeout}s. Shell session was reset. "
+                    f"Consider background execution ('&'), increased timeout (max {MAX_TIMEOUT}s), "
+                    "or splitting into smaller steps."
                 )
             )
         except BrokenPipeError:
             await self._reset_process()
-            return ToolResult(error="Shell session died unexpectedly. Session restarted — please retry.")
+            return ToolResult(error="Shell session died. Session restarted — please retry.")
         except Exception as e:
             return ToolResult(error=f"Bash error: {e}")
-
-    # ------------------------------------------------------------------
-    # Process lifecycle
-    # ------------------------------------------------------------------
 
     async def _ensure_process(self) -> asyncio.subprocess.Process:
         if self._process is None or self._process.returncode is not None:

@@ -53,8 +53,9 @@ approach, WHAT you expect the result to be, and HOW you will verify success.
 
     MAX_REFLECT_RETRIES = 3  # Max retries per step when reflection says "not solved"
 
-    def __init__(self) -> None:
-        super().__init__()
+    def __init__(self, mode=None) -> None:
+        from app.permissions.gate import AgentMode
+        super().__init__(mode=mode or AgentMode.BUILD)
         self.llm = LLM()
 
     # ------------------------------------------------------------------

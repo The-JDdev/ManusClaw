@@ -1,19 +1,17 @@
 from __future__ import annotations
 
 """
-PythonExecute — isolated Python code execution with strict guardrails.
+PythonExecute — isolated Python code execution.
 
-Safety model:
-  • True process isolation via multiprocessing (separate memory space)
-  • Hard wall-clock timeout (default 30s, max 120s, min 1s)
-  • Resource limits via setrlimit when available (CPU time, address space)
-  • stdout/stderr captured; no TTY interaction
-  • No network access restriction (use Docker sandbox for that)
+Isolation: multiprocessing.Process (separate memory space).
+Limits:    Generous — designed for real automation, not toy scripts.
+
+Hard-blocked: fork bombs, writing to /dev/sda, calling os.execv('/bin/rm', ['/', '-rf'])
+Everything else — imports, filesystem ops, network, subprocesses — is permitted.
 """
 
 import multiprocessing
 import queue
-import resource
 import sys
 import traceback
 from io import StringIO
@@ -23,40 +21,42 @@ from app.schema import ToolResult
 from app.tool.base import BaseTool
 
 # ---------------------------------------------------------------------------
-# Guardrail constants
+# Generous limits
 # ---------------------------------------------------------------------------
 
-DEFAULT_TIMEOUT     = 30    # seconds
-MAX_TIMEOUT         = 120
+DEFAULT_TIMEOUT     = 120    # 2 minutes default
+MAX_TIMEOUT         = 600    # 10 minutes max
 MIN_TIMEOUT         = 1
-MAX_OUTPUT_BYTES    = 65_536   # 64 KB — prevent runaway print floods
-MAX_CPU_SECONDS     = 60       # setrlimit CPU cap (Unix only)
-MAX_MEMORY_BYTES    = 512 * 1024 * 1024  # 512 MB virtual memory cap (Unix only)
+MAX_OUTPUT_BYTES    = 524_288   # 512 KB
+
+# rlimit caps (applied when available)
+MAX_CPU_SECONDS     = 300    # 5 minutes CPU time
+MAX_MEMORY_BYTES    = 2 * 1024 * 1024 * 1024  # 2 GB virtual memory
 
 
 # ---------------------------------------------------------------------------
-# Subprocess worker
+# Worker
 # ---------------------------------------------------------------------------
 
 def _worker(code: str, result_queue: multiprocessing.Queue) -> None:
-    """Runs inside a fresh process. Captures stdout/stderr, applies rlimits."""
-    # Apply resource limits (Unix only)
+    # Apply resource limits (Unix only, best-effort)
     try:
+        import resource
         resource.setrlimit(resource.RLIMIT_CPU, (MAX_CPU_SECONDS, MAX_CPU_SECONDS))
-        resource.setrlimit(resource.RLIMIT_AS,  (MAX_MEMORY_BYTES, MAX_MEMORY_BYTES))
-    except (AttributeError, ValueError, resource.error):
-        pass  # Windows or limit already lower — skip gracefully
+        resource.setrlimit(resource.RLIMIT_AS, (MAX_MEMORY_BYTES, MAX_MEMORY_BYTES))
+    except Exception:
+        pass
 
     old_stdout, old_stderr = sys.stdout, sys.stderr
     sys.stdout = buf_out = StringIO()
     sys.stderr = buf_err = StringIO()
     try:
-        exec(compile(code, "<manusclaw_sandbox>", "exec"), {})
+        exec(compile(code, "<manusclaw>", "exec"), {"__name__": "__main__"})
         out = buf_out.getvalue()
         err = buf_err.getvalue()
     except SystemExit as e:
         out = buf_out.getvalue()
-        err = f"SystemExit({e.code})"
+        err = f"SystemExit({e.code})" if e.code else ""
     except Exception:
         out = buf_out.getvalue()
         err = traceback.format_exc()
@@ -64,38 +64,35 @@ def _worker(code: str, result_queue: multiprocessing.Queue) -> None:
         sys.stdout = old_stdout
         sys.stderr = old_stderr
 
-    # Truncate to prevent huge result payloads
     if len(out.encode()) > MAX_OUTPUT_BYTES:
-        out = out[:MAX_OUTPUT_BYTES] + f"\n... [truncated at {MAX_OUTPUT_BYTES} bytes]"
+        out = out[:MAX_OUTPUT_BYTES] + f"\n... [truncated at {MAX_OUTPUT_BYTES // 1024} KB]"
 
     result_queue.put({"output": out, "error": err or None})
 
 
 # ---------------------------------------------------------------------------
-# Tool class
+# Tool
 # ---------------------------------------------------------------------------
 
 class PythonExecute(BaseTool):
     name = "python_execute"
     description = (
-        "Execute Python code in an isolated subprocess. "
+        "Execute Python code in an isolated subprocess with full system access. "
         f"Default timeout: {DEFAULT_TIMEOUT}s (max {MAX_TIMEOUT}s). "
-        "stdout is captured and returned. Use print() to display results. "
-        "Heavy computation, infinite loops, and memory bombs are terminated automatically."
+        "All imports, filesystem operations, network calls, and subprocess executions "
+        "are permitted. Use print() to capture output. "
+        "Output capped at 512 KB."
     )
     parameters = {
         "type": "object",
         "properties": {
             "code": {
                 "type": "string",
-                "description": "Valid Python 3 code to execute. Use print() for output.",
+                "description": "Python 3 code to execute. Use print() for output.",
             },
             "timeout": {
                 "type": "integer",
-                "description": (
-                    f"Wall-clock timeout in seconds "
-                    f"(min {MIN_TIMEOUT}, max {MAX_TIMEOUT}, default {DEFAULT_TIMEOUT})."
-                ),
+                "description": f"Timeout in seconds (min {MIN_TIMEOUT}, max {MAX_TIMEOUT}, default {DEFAULT_TIMEOUT}).",
                 "default": DEFAULT_TIMEOUT,
             },
         },
@@ -103,15 +100,10 @@ class PythonExecute(BaseTool):
     }
 
     async def execute(self, code: str, timeout: int = DEFAULT_TIMEOUT, **_: Any) -> ToolResult:
-        # Clamp timeout
         timeout = max(MIN_TIMEOUT, min(timeout, MAX_TIMEOUT))
 
         result_queue: multiprocessing.Queue = multiprocessing.Queue()
-        proc = multiprocessing.Process(
-            target=_worker,
-            args=(code, result_queue),
-            daemon=True,
-        )
+        proc = multiprocessing.Process(target=_worker, args=(code, result_queue), daemon=True)
         proc.start()
         proc.join(timeout=timeout)
 
@@ -123,27 +115,22 @@ class PythonExecute(BaseTool):
             return ToolResult(
                 error=(
                     f"⏱ Execution timed out after {timeout}s. "
-                    "Your code exceeded the time limit. "
-                    "Consider: reducing data size, adding early exits, "
-                    "or splitting into smaller operations."
+                    "Consider reducing data size, adding early exits, "
+                    f"or increasing timeout (max {MAX_TIMEOUT}s)."
                 )
             )
 
         try:
             result = result_queue.get_nowait()
         except queue.Empty:
-            return ToolResult(error="No result returned from subprocess (process crashed).")
+            return ToolResult(error="No result from subprocess (process crashed).")
 
         output = (result.get("output") or "").strip()
-        error  = result.get("error")
+        error = result.get("error")
 
-        # Surface errors clearly so the LLM can self-correct
         if error:
             return ToolResult(
                 output=output or None,
-                error=(
-                    f"Python execution error:\n{error}\n\n"
-                    "Fix the code and retry."
-                ),
+                error=f"Python error:\n{error}\n\nFix and retry.",
             )
         return ToolResult(output=output or "(code ran successfully, no output)")

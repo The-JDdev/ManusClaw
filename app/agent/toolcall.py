@@ -57,8 +57,10 @@ If it failed or returned unexpected output, analyse why and choose a different
 tool or different arguments — DO NOT repeat the same failing call.
 """
 
-    def __init__(self, tools: Optional[ToolCollection] = None) -> None:
-        super().__init__()
+    def __init__(self, tools: Optional[ToolCollection] = None, mode=None) -> None:
+        from app.permissions.gate import AgentMode
+        mode = mode or AgentMode.BUILD
+        super().__init__(mode=mode)
         self.tools: ToolCollection = tools or ToolCollection(Terminate())
         if self.tools.get("terminate") is None:
             self.tools.add(Terminate())

@@ -1,7 +1,23 @@
 from __future__ import annotations
 
+"""
+Universal LLM Router — Dual-Mode Architecture
+=============================================
+
+Mode 1 — OFFICIAL PROVIDERS
+  Set `provider` to one of: openai | anthropic | google | mock
+  Uses official SDKs or dedicated client paths.
+
+Mode 2 — UNIVERSAL / AGNOSTIC  (OpenRouter, Ollama, LMStudio, any proxy)
+  Just set `base_url` + `api_key` (can be "none") + `model`.
+  System sends a standard OpenAI-compatible request — no hardcoded provider checks.
+  Works with: OpenRouter, Ollama, LMStudio, vLLM, Together AI, Groq, Perplexity, etc.
+
+Priority: if `base_url` is set AND `provider` is empty/null → agnostic mode.
+          if `provider` is explicitly set → official SDK mode.
+"""
+
 import asyncio
-import json
 import random
 import time
 from typing import Any, Optional
@@ -13,233 +29,381 @@ from app.schema import Message, Role, ToolCall, Function
 
 
 # ---------------------------------------------------------------------------
-# Token counting
+# Retry constants
 # ---------------------------------------------------------------------------
 
-def count_tokens(text: str, model: str = "gpt-4o") -> int:
-    try:
-        import tiktoken
-        enc = tiktoken.encoding_for_model(model)
-        return len(enc.encode(text))
-    except Exception:
-        return len(text) // 4
+MAX_RETRIES      = 8
+RETRY_BASE_WAIT  = 1.0
+RETRY_MAX_WAIT   = 60.0
 
 
 # ---------------------------------------------------------------------------
-# Mock LLM  (deterministic stub so the app runs without credentials)
+# Helper: build a Message from an OpenAI-style response dict
+# ---------------------------------------------------------------------------
+
+def _msg_from_openai(choice: dict) -> Message:
+    msg = choice.get("message", {})
+    role = Role(msg.get("role", "assistant"))
+    content = msg.get("content")
+    raw_tcs = msg.get("tool_calls") or []
+    tool_calls = [
+        ToolCall(
+            id=tc["id"],
+            type=tc.get("type", "function"),
+            function=Function(
+                name=tc["function"]["name"],
+                arguments=tc["function"].get("arguments", "{}"),
+            ),
+        )
+        for tc in raw_tcs
+    ]
+    return Message(role=role, content=content, tool_calls=tool_calls or None)
+
+
+# ---------------------------------------------------------------------------
+# MockLLM — zero credentials, always works
 # ---------------------------------------------------------------------------
 
 class MockLLM:
-    """A deterministic stub LLM for testing without credentials."""
+    """
+    Two-step mock: step 1 → python_execute, step 2 → terminate.
+    Lets the full PAORR pipeline run without any real LLM.
+    """
 
-    _STEP = 0
+    def __init__(self) -> None:
+        self._call_count = 0
 
-    async def ask(self, messages: list[Message], **kwargs: Any) -> Message:
-        MockLLM._STEP += 1
-        content = (
-            f"[MockLLM step {MockLLM._STEP}] "
-            "I have analysed the task. Let me use the terminate tool to complete it."
-        )
+    async def chat(self, messages: list, tools: Optional[list] = None) -> dict:
+        """OpenAI-compatible chat method used by the universal router."""
+        self._call_count += 1
+        if self._call_count == 1:
+            return {"choices": [{"message": {
+                "role": "assistant",
+                "content": f"[MockLLM step 1] Running Python to greet the user.",
+                "tool_calls": [{
+                    "id": "mock-tc-1", "type": "function",
+                    "function": {"name": "python_execute",
+                                 "arguments": '{"code": "print(\'Hello from ManusClaw!\')"}'},
+                }],
+            }}]}
+        return {"choices": [{"message": {
+            "role": "assistant",
+            "content": "Task complete.",
+            "tool_calls": [{
+                "id": "mock-tc-2", "type": "function",
+                "function": {"name": "terminate",
+                             "arguments": '{"reason": "Task completed successfully by MockLLM."}'},
+            }],
+        }}]}
+
+    async def ask(self, messages: list[Message], **_) -> Message:
+        self._call_count += 1
+        step = self._call_count
+        content = f"[MockLLM step {step}] Running Python to greet the user."
         return Message.assistant(content=content)
 
-    async def ask_tool(
-        self,
-        messages: list[Message],
-        tools: list[dict[str, Any]],
-        **kwargs: Any,
-    ) -> Message:
-        MockLLM._STEP += 1
-        tool_names = [t["function"]["name"] for t in tools if "function" in t]
-
-        # Step 1: use python_execute if available (demonstrates real tool use)
-        if MockLLM._STEP == 1 and "python_execute" in tool_names:
-            tc = ToolCall(
-                id=f"call_{random.randint(10000,99999)}",
-                function=Function(
-                    name="python_execute",
-                    arguments=json.dumps({"code": "print('Hello from ManusClaw!')"}),
-                ),
+    async def ask_tool(self, messages: list[Message], tools: list[dict], **_) -> Message:
+        self._call_count += 1
+        if self._call_count == 1:
+            return Message(
+                role=Role.ASSISTANT,
+                content="I will run a Python hello-world.",
+                tool_calls=[
+                    ToolCall(
+                        id="mock-tc-1",
+                        type="function",
+                        function=Function(
+                            name="python_execute",
+                            arguments='{"code": "print(\'Hello from ManusClaw!\')"}',
+                        ),
+                    )
+                ],
             )
-            return Message.assistant(
-                content=f"[MockLLM step {MockLLM._STEP}] Running Python to greet the user.",
-                tool_calls=[tc],
-            )
-
-        # Step 1 fallback or step 2+: call terminate
-        if "terminate" in tool_names:
-            tc = ToolCall(
-                id=f"call_{random.randint(10000,99999)}",
-                function=Function(
-                    name="terminate",
-                    arguments=json.dumps({"reason": "Task completed successfully by MockLLM."}),
-                ),
-            )
-            return Message.assistant(
-                content=f"[MockLLM step {MockLLM._STEP}] Terminating.",
-                tool_calls=[tc],
-            )
-
-        return Message.assistant(content=f"[MockLLM step {MockLLM._STEP}] Done.")
-
-
-# ---------------------------------------------------------------------------
-# Real LLM wrappers
-# ---------------------------------------------------------------------------
-
-class OpenAILLM:
-    def __init__(self, cfg: Any) -> None:
-        from openai import AsyncOpenAI
-        self._client = AsyncOpenAI(
-            api_key=cfg.api_key,
-            base_url=cfg.base_url,
-            timeout=cfg.timeout,
-        )
-        self._model = cfg.model
-        self._max_tokens = cfg.max_tokens
-        self._temperature = cfg.temperature
-
-    async def ask(self, messages: list[Message], **kwargs: Any) -> Message:
-        resp = await self._client.chat.completions.create(
-            model=self._model,
-            messages=[m.to_dict() for m in messages],
-            max_tokens=self._max_tokens,
-            temperature=self._temperature,
-        )
-        choice = resp.choices[0]
-        return Message.assistant(content=choice.message.content)
-
-    async def ask_tool(
-        self,
-        messages: list[Message],
-        tools: list[dict[str, Any]],
-        **kwargs: Any,
-    ) -> Message:
-        resp = await self._client.chat.completions.create(
-            model=self._model,
-            messages=[m.to_dict() for m in messages],
-            tools=tools,
-            tool_choice="auto",
-            max_tokens=self._max_tokens,
-            temperature=self._temperature,
-        )
-        choice = resp.choices[0]
-        msg = choice.message
-        tool_calls = None
-        if msg.tool_calls:
-            tool_calls = [
+        return Message(
+            role=Role.ASSISTANT,
+            content="Task complete.",
+            tool_calls=[
                 ToolCall(
-                    id=tc.id,
-                    function=Function(name=tc.function.name, arguments=tc.function.arguments),
+                    id="mock-tc-2",
+                    type="function",
+                    function=Function(
+                        name="terminate",
+                        arguments='{"reason": "Task completed successfully by MockLLM."}',
+                    ),
                 )
-                for tc in msg.tool_calls
-            ]
-        return Message.assistant(content=msg.content, tool_calls=tool_calls)
-
-
-class AnthropicLLM:
-    def __init__(self, cfg: Any) -> None:
-        import anthropic
-        self._client = anthropic.AsyncAnthropic(api_key=cfg.api_key)
-        self._model = cfg.model
-        self._max_tokens = cfg.max_tokens
-        self._temperature = cfg.temperature
-
-    def _convert_messages(self, messages: list[Message]) -> tuple[Optional[str], list[dict]]:
-        system_prompt = None
-        converted = []
-        for m in messages:
-            if m.role == Role.SYSTEM:
-                system_prompt = m.content
-            else:
-                converted.append({"role": m.role.value, "content": m.content or ""})
-        return system_prompt, converted
-
-    async def ask(self, messages: list[Message], **kwargs: Any) -> Message:
-        system, msgs = self._convert_messages(messages)
-        resp = await self._client.messages.create(
-            model=self._model,
-            max_tokens=self._max_tokens,
-            temperature=self._temperature,
-            system=system or "",
-            messages=msgs,
+            ],
         )
-        return Message.assistant(content=resp.content[0].text)
-
-    async def ask_tool(self, messages: list[Message], tools: list[dict], **kwargs: Any) -> Message:
-        # Anthropic tool format differs; simplified passthrough
-        return await self.ask(messages, **kwargs)
 
 
-class OllamaLLM(OpenAILLM):
-    """Ollama uses an OpenAI-compatible API."""
-    def __init__(self, cfg: Any) -> None:
+# ---------------------------------------------------------------------------
+# Universal OpenAI-compatible client (Mode 2 — agnostic)
+# ---------------------------------------------------------------------------
+
+class UniversalClient:
+    """
+    Sends plain OpenAI-compatible HTTP requests.
+    Works with OpenRouter, Ollama, LMStudio, vLLM, Groq, Together, Perplexity, etc.
+    """
+
+    def __init__(self, base_url: str, api_key: str, model: str, **kwargs) -> None:
+        self.base_url = base_url.rstrip("/")
+        self.api_key = api_key
+        self.model = model
+        self.max_tokens = kwargs.get("max_tokens", 8192)
+        self.temperature = kwargs.get("temperature", 0.0)
+        self._extra_headers = kwargs.get("extra_headers", {})
+
+    async def _post(self, payload: dict) -> dict:
+        import aiohttp
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+            **self._extra_headers,
+        }
+        url = f"{self.base_url}/chat/completions"
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, json=payload, headers=headers) as resp:
+                if resp.status == 429:
+                    raise RateLimitError("Rate limited")
+                if resp.status == 400:
+                    body = await resp.text()
+                    if "context" in body.lower() or "token" in body.lower():
+                        raise TokenLimitExceeded(body)
+                    raise ValueError(f"Bad request: {body}")
+                resp.raise_for_status()
+                return await resp.json()
+
+    async def chat(self, messages: list[dict], tools: Optional[list[dict]] = None) -> dict:
+        payload: dict[str, Any] = {
+            "model": self.model,
+            "messages": messages,
+            "max_tokens": self.max_tokens,
+            "temperature": self.temperature,
+        }
+        if tools:
+            payload["tools"] = tools
+            payload["tool_choice"] = "auto"
+        return await self._post(payload)
+
+
+# ---------------------------------------------------------------------------
+# Official provider clients (Mode 1)
+# ---------------------------------------------------------------------------
+
+class OpenAIClient:
+    def __init__(self, cfg) -> None:
         from openai import AsyncOpenAI
-        self._client = AsyncOpenAI(
-            api_key="ollama",
-            base_url=cfg.base_url or "http://localhost:11434/v1",
-            timeout=cfg.timeout,
+        self._c = AsyncOpenAI(api_key=cfg.api_key, base_url=cfg.base_url or None)
+        self.model = cfg.model
+        self.max_tokens = cfg.max_tokens
+        self.temperature = cfg.temperature
+
+    async def chat(self, messages: list[dict], tools: Optional[list[dict]] = None) -> dict:
+        kwargs: dict[str, Any] = dict(
+            model=self.model,
+            messages=messages,
+            max_tokens=self.max_tokens,
+            temperature=self.temperature,
         )
-        self._model = cfg.model
-        self._max_tokens = cfg.max_tokens
-        self._temperature = cfg.temperature
+        if tools:
+            kwargs["tools"] = tools
+            kwargs["tool_choice"] = "auto"
+        resp = await self._c.chat.completions.create(**kwargs)
+        return resp.model_dump()
+
+
+class AnthropicClient:
+    def __init__(self, cfg) -> None:
+        from anthropic import AsyncAnthropic
+        self._c = AsyncAnthropic(api_key=cfg.api_key)
+        self.model = cfg.model
+        self.max_tokens = cfg.max_tokens
+
+    async def chat(self, messages: list[dict], tools: Optional[list[dict]] = None) -> dict:
+        # Convert to Anthropic format
+        system = next((m["content"] for m in messages if m["role"] == "system"), None)
+        conv = [m for m in messages if m["role"] != "system"]
+
+        kwargs: dict[str, Any] = dict(
+            model=self.model,
+            max_tokens=self.max_tokens,
+            messages=conv,
+        )
+        if system:
+            kwargs["system"] = system
+        if tools:
+            kwargs["tools"] = [
+                {
+                    "name": t["function"]["name"],
+                    "description": t["function"].get("description", ""),
+                    "input_schema": t["function"].get("parameters", {}),
+                }
+                for t in tools
+            ]
+
+        resp = await self._c.messages.create(**kwargs)
+        # Normalise to OpenAI shape
+        content = ""
+        tool_calls = []
+        for block in resp.content:
+            if block.type == "text":
+                content = block.text
+            elif block.type == "tool_use":
+                import json
+                tool_calls.append({
+                    "id": block.id,
+                    "type": "function",
+                    "function": {
+                        "name": block.name,
+                        "arguments": json.dumps(block.input),
+                    },
+                })
+        return {
+            "choices": [{
+                "message": {
+                    "role": "assistant",
+                    "content": content or None,
+                    "tool_calls": tool_calls or None,
+                }
+            }]
+        }
+
+
+class GoogleClient:
+    def __init__(self, cfg) -> None:
+        import google.generativeai as genai
+        genai.configure(api_key=cfg.api_key)
+        self._model_name = cfg.model or "gemini-1.5-pro"
+        self.max_tokens = cfg.max_tokens
+        self.temperature = cfg.temperature
+
+    async def chat(self, messages: list[dict], tools: Optional[list[dict]] = None) -> dict:
+        import google.generativeai as genai
+        import json
+        model = genai.GenerativeModel(self._model_name)
+        prompt = "\n".join(
+            f"{m['role'].upper()}: {m.get('content') or ''}"
+            for m in messages
+        )
+        resp = await asyncio.to_thread(model.generate_content, prompt)
+        return {
+            "choices": [{
+                "message": {
+                    "role": "assistant",
+                    "content": resp.text,
+                    "tool_calls": None,
+                }
+            }]
+        }
 
 
 # ---------------------------------------------------------------------------
-# Main LLM class with retry logic
+# Rate-limit sentinel
 # ---------------------------------------------------------------------------
 
-_RETRYABLE_STATUS = {429, 500, 502, 503, 504}
+class RateLimitError(Exception):
+    pass
 
+
+# ---------------------------------------------------------------------------
+# LLM — top-level router
+# ---------------------------------------------------------------------------
 
 class LLM:
+    """
+    Routes to the correct backend based on config:
+
+      provider = "openai"    → OpenAIClient (official SDK)
+      provider = "anthropic" → AnthropicClient (official SDK)
+      provider = "google"    → GoogleClient (official SDK)
+      provider = "mock"      → MockLLM (zero credentials)
+      base_url is set        → UniversalClient (agnostic OpenAI-compat)
+      (anything else)        → UniversalClient with base_url
+    """
+
     def __init__(self) -> None:
         cfg = Config.get()
-        self._cfg = cfg.llm
-        self._backend = self._build_backend()
+        self._backend = self._build_backend(cfg)
 
-    def _build_backend(self) -> Any:
-        provider = self._cfg.provider
+    def _build_backend(self, cfg):
+        provider = (cfg.llm.provider or "").lower().strip()
+
+        # --- Mock ---
         if provider == "mock":
             logger.info("Using MockLLM (no credentials required)")
             return MockLLM()
-        if provider in ("openai", "azure"):
-            return OpenAILLM(self._cfg)
+
+        # --- Universal / Agnostic mode ---
+        # Triggered when base_url is set without a recognised provider,
+        # OR when provider is explicitly "universal" / "openrouter" / "ollama" / "openai-compat"
+        universal_triggers = {"universal", "openrouter", "ollama", "lmstudio", "openai-compat", "groq", "together", "perplexity", "agentrouter", ""}
+        if cfg.llm.base_url and (not provider or provider in universal_triggers):
+            logger.info(f"Universal/Agnostic LLM mode — base_url={cfg.llm.base_url} model={cfg.llm.model}")
+            return UniversalClient(
+                base_url=cfg.llm.base_url,
+                api_key=cfg.llm.api_key or "none",
+                model=cfg.llm.model,
+                max_tokens=cfg.llm.max_tokens,
+                temperature=cfg.llm.temperature,
+                extra_headers=cfg.llm.extra_headers or {},
+            )
+
+        # --- Official providers ---
+        if provider == "openai":
+            logger.info(f"Official provider: OpenAI (model={cfg.llm.model})")
+            return OpenAIClient(cfg.llm)
         if provider == "anthropic":
-            return AnthropicLLM(self._cfg)
-        if provider == "ollama":
-            return OllamaLLM(self._cfg)
-        logger.warning(f"Unknown LLM provider '{provider}', falling back to MockLLM")
+            logger.info(f"Official provider: Anthropic (model={cfg.llm.model})")
+            return AnthropicClient(cfg.llm)
+        if provider in ("google", "gemini"):
+            logger.info(f"Official provider: Google/Gemini (model={cfg.llm.model})")
+            return GoogleClient(cfg.llm)
+
+        # --- Fallback: treat any unknown provider + base_url as universal ---
+        if cfg.llm.base_url:
+            logger.info(f"Unknown provider '{provider}', falling back to Universal mode")
+            return UniversalClient(
+                base_url=cfg.llm.base_url,
+                api_key=cfg.llm.api_key or "none",
+                model=cfg.llm.model,
+                max_tokens=cfg.llm.max_tokens,
+                temperature=cfg.llm.temperature,
+            )
+
+        # --- Last resort: MockLLM ---
+        logger.warning(f"No valid LLM config found (provider='{provider}'). Using MockLLM.")
         return MockLLM()
 
-    async def _with_retry(self, coro_fn: Any, *args: Any, **kwargs: Any) -> Any:
-        max_retries = self._cfg.max_retries
-        for attempt in range(max_retries):
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+
+    async def ask(self, messages: list[Message], **kwargs) -> Message:
+        raw = [m.to_dict() for m in messages]
+        data = await self._call_with_retry(raw, tools=None, **kwargs)
+        return _msg_from_openai(data["choices"][0])
+
+    async def ask_tool(self, messages: list[Message], tools: list[dict], **kwargs) -> Message:
+        raw = [m.to_dict() for m in messages]
+        data = await self._call_with_retry(raw, tools=tools, **kwargs)
+        return _msg_from_openai(data["choices"][0])
+
+    async def _call_with_retry(self, messages: list[dict], tools: Optional[list[dict]], **kwargs) -> dict:
+        wait = RETRY_BASE_WAIT
+        for attempt in range(1, MAX_RETRIES + 1):
             try:
-                return await coro_fn(*args, **kwargs)
+                return await self._backend.chat(messages, tools=tools)
             except TokenLimitExceeded:
                 raise
+            except RateLimitError:
+                logger.warning(f"[LLM] Rate limited (attempt {attempt}). Waiting {wait:.1f}s...")
+                await asyncio.sleep(wait)
+                wait = min(wait * 2 + random.uniform(0, 1), RETRY_MAX_WAIT)
             except Exception as e:
-                err_str = str(e)
-                status = getattr(e, "status_code", None)
-                if status == 400 and "token" in err_str.lower():
-                    raise TokenLimitExceeded(err_str) from e
-                if attempt < max_retries - 1:
-                    wait = min(2 ** attempt + random.uniform(0, 1), 60)
-                    logger.warning(f"LLM error (attempt {attempt+1}/{max_retries}): {e}. Retrying in {wait:.1f}s")
-                    await asyncio.sleep(wait)
-                else:
+                if attempt == MAX_RETRIES:
                     raise
+                logger.warning(f"[LLM] Error (attempt {attempt}/{MAX_RETRIES}): {e}. Retrying in {wait:.1f}s...")
+                await asyncio.sleep(wait)
+                wait = min(wait * 2 + random.uniform(0, 1), RETRY_MAX_WAIT)
 
-    async def ask(self, messages: list[Message], **kwargs: Any) -> Message:
-        return await self._with_retry(self._backend.ask, messages, **kwargs)
-
-    async def ask_tool(
-        self,
-        messages: list[Message],
-        tools: list[dict[str, Any]],
-        **kwargs: Any,
-    ) -> Message:
-        return await self._with_retry(self._backend.ask_tool, messages, tools, **kwargs)
-
-    def count_tokens(self, text: str) -> int:
-        return count_tokens(text, self._cfg.model)
+        raise RuntimeError("LLM failed after all retries")
