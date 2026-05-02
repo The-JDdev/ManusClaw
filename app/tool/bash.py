@@ -3,16 +3,26 @@ from __future__ import annotations
 """
 Bash — persistent async shell session.
 
-Safety: Only catastrophic OS-destroying operations are blocked.
-Everything else — system edits, package installs, network ops,
-config changes, automation scripts — is fully permitted.
+Philosophy: The agent runs until the task is DONE.
+No artificial output caps. No artificial time limits.
+Only catastrophic OS-destroying operations are hard-blocked.
 
-Blocked (hard deny, unconditional):
-  rm -rf / | rm -rf /* | fork bombs | dd to block devices | mkfs | kill -9 -1
-  
-Permitted (everything else):
-  sudo, apt, pip, npm, git, curl, wget, ssh, docker, systemctl,
-  crontab, env edits, /etc edits, /usr edits, complex scripts, etc.
+Blocked (hard deny, unconditional — these destroy the OS itself):
+  rm -rf /   rm -rf /*   fork bombs   dd to block devices   mkfs   wipefs   kill -9 -1
+
+Permitted (everything else — no exceptions):
+  sudo, apt, pip, npm, cargo, go, git, curl, wget, ssh, docker, systemctl,
+  crontab, env edits, /etc edits, /usr edits, long-running compiles, training
+  runs, crawlers, scrapers, batch jobs, automation pipelines, etc.
+
+Timeouts:
+  DEFAULT_TIMEOUT = 3600   (1 hour — enough for most tasks)
+  MAX_TIMEOUT     = 86400  (24 hours — for overnight jobs, model training, etc.)
+  The agent MAY pass any timeout up to 24h. No cap below that.
+
+Output:
+  No byte cap. Full output is always returned.
+  The agent needs complete output to reason correctly — truncation is a bug.
 """
 
 import asyncio
@@ -25,20 +35,19 @@ from app.tool.base import BaseTool
 
 
 # ---------------------------------------------------------------------------
-# Limits — generous, not artificial
+# Limits — task-complete, not toy-safe
 # ---------------------------------------------------------------------------
 
-DEFAULT_TIMEOUT  = 120
-MAX_TIMEOUT      = 600
-MIN_TIMEOUT      = 1
-MAX_OUTPUT_BYTES = 524_288   # 512 KB
+DEFAULT_TIMEOUT = 3600    # 1 hour
+MAX_TIMEOUT     = 86400   # 24 hours — overnight jobs, training runs
+MIN_TIMEOUT     = 1
 
-# Catastrophic patterns — the ONLY things blocked
+# Catastrophic patterns — the ONLY things blocked, ever
 _CATASTROPHIC = [
     r"rm\s+-[rRf]+\s+/\s*$",
     r"rm\s+-[rRf]+\s+/\*",
     r"rm\s+--no-preserve-root",
-    r":\(\)\s*\{.*:\|:.*\}",               # fork bomb
+    r":\(\)\s*\{.*:\|:.*\}",
     r"dd\s+if=/dev/zero\s+of=/dev/(s|h|v|xv)d\b",
     r">\s*/dev/(s|h|v|xv)d[a-z]\b",
     r"mkfs\.",
@@ -60,18 +69,27 @@ class Bash(BaseTool):
     name = "bash"
     description = (
         "Execute shell commands in a persistent bash session. "
-        f"Default timeout: {DEFAULT_TIMEOUT}s (max {MAX_TIMEOUT}s). "
+        f"Default timeout: {DEFAULT_TIMEOUT}s ({DEFAULT_TIMEOUT // 3600}h). "
+        f"Max timeout: {MAX_TIMEOUT}s ({MAX_TIMEOUT // 3600}h) for overnight jobs. "
+        "Full output always returned — no truncation. "
         "Environment, working directory, and variables persist across calls. "
-        "Full system access: sudo, apt, pip, git, curl, systemctl, etc. "
-        "Only catastrophic OS-destroying commands are blocked."
+        "Full system access: sudo, apt, pip, git, curl, systemctl, docker, etc. "
+        "Only OS-destroying commands (rm -rf /, fork bombs, mkfs) are blocked."
     )
     parameters = {
         "type": "object",
         "properties": {
-            "command": {"type": "string", "description": "Shell command to run."},
+            "command": {
+                "type": "string",
+                "description": "Shell command to run.",
+            },
             "timeout": {
                 "type": "integer",
-                "description": f"Timeout in seconds (min {MIN_TIMEOUT}, max {MAX_TIMEOUT}, default {DEFAULT_TIMEOUT}).",
+                "description": (
+                    f"Timeout in seconds. Default {DEFAULT_TIMEOUT}s (1h). "
+                    f"Max {MAX_TIMEOUT}s (24h) for long-running jobs. "
+                    "Set higher for compiles, training runs, crawlers."
+                ),
                 "default": DEFAULT_TIMEOUT,
             },
         },
@@ -89,9 +107,10 @@ class Bash(BaseTool):
         if bad:
             return ToolResult(
                 error=(
-                    f"🚫 BLOCKED — catastrophic pattern matched: `{bad}`\n"
-                    "This operation would permanently damage the OS and is the ONLY type "
-                    "of command that is blocked. All other system operations are permitted."
+                    f"BLOCKED — catastrophic OS-destroying pattern: `{bad}`\n"
+                    "This is the ONLY category of blocked commands. "
+                    "Everything else (sudo, rm -rf subdirs, system edits, network, docker) "
+                    "is fully permitted."
                 )
             )
 
@@ -110,12 +129,10 @@ class Bash(BaseTool):
             await proc.stdin.drain()
 
             lines: list[str] = []
-            total_bytes = 0
-            truncated = False
             exit_code: Optional[int] = None
 
             async def _read() -> None:
-                nonlocal total_bytes, truncated, exit_code
+                nonlocal exit_code
                 while True:
                     line_bytes = await proc.stdout.readline()
                     line = line_bytes.decode(errors="replace").rstrip("\n")
@@ -127,16 +144,6 @@ class Bash(BaseTool):
                         except ValueError:
                             pass
                         continue
-                    chunk_bytes = len(line.encode())
-                    if total_bytes + chunk_bytes > MAX_OUTPUT_BYTES:
-                        lines.append(f"\n... [output truncated at {MAX_OUTPUT_BYTES // 1024} KB]")
-                        truncated = True
-                        while True:
-                            drain = await proc.stdout.readline()
-                            if drain.decode(errors="replace").strip() == sentinel:
-                                break
-                        break
-                    total_bytes += chunk_bytes
                     lines.append(line)
 
             await asyncio.wait_for(_read(), timeout=timeout)
@@ -147,24 +154,26 @@ class Bash(BaseTool):
                     output=output or None,
                     error=(
                         f"Command exited with code {exit_code}.\n"
-                        f"Output:\n{output}\n\nReview the error and adjust your command."
+                        f"Output:\n{output}\n\n"
+                        "Review the error above and adjust your command."
                     ),
                 )
-            return ToolResult(output=output or "(command ran, no output)")
+            return ToolResult(output=output or "(command ran successfully, no output)")
 
         except asyncio.TimeoutError:
             logger.warning(f"[bash] Command timed out after {timeout}s. Resetting session.")
             await self._reset_process()
             return ToolResult(
                 error=(
-                    f"⏱ Command timed out after {timeout}s. Shell session was reset. "
-                    f"Consider background execution ('&'), increased timeout (max {MAX_TIMEOUT}s), "
-                    "or splitting into smaller steps."
+                    f"Command timed out after {timeout}s. Shell session was reset. "
+                    f"Increase timeout (max {MAX_TIMEOUT}s = 24h), "
+                    "use background execution ('nohup ... &'), "
+                    "or split into smaller steps."
                 )
             )
         except BrokenPipeError:
             await self._reset_process()
-            return ToolResult(error="Shell session died. Session restarted — please retry.")
+            return ToolResult(error="Shell session died unexpectedly. Session restarted — retry.")
         except Exception as e:
             return ToolResult(error=f"Bash error: {e}")
 

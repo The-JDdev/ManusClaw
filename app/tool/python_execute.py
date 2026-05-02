@@ -3,11 +3,26 @@ from __future__ import annotations
 """
 PythonExecute — isolated Python code execution.
 
-Isolation: multiprocessing.Process (separate memory space).
-Limits:    Generous — designed for real automation, not toy scripts.
+Philosophy: The agent runs until the task is DONE.
+No artificial output caps. No artificial time limits.
+Only catastrophic OS operations are hard-blocked.
 
-Hard-blocked: fork bombs, writing to /dev/sda, calling os.execv('/bin/rm', ['/', '-rf'])
-Everything else — imports, filesystem ops, network, subprocesses — is permitted.
+Isolation: multiprocessing.Process (separate memory space).
+Memory:    2 GB virtual — enough for real ML/data work.
+CPU time:  No wall-clock cap. Agent sets its own timeout.
+Output:    Full output always returned. No byte truncation.
+
+Blocked (hard deny):
+  fork bombs, writing to /dev/sda, os.execv to destructive binaries
+
+Permitted (everything else):
+  All imports, filesystem ops, network calls, subprocesses,
+  ML training, data processing, long computations, crawlers.
+
+Timeouts:
+  DEFAULT_TIMEOUT = 3600s  (1 hour)
+  MAX_TIMEOUT     = 86400s (24 hours — model training, batch jobs)
+  Agent may specify any value up to 24h.
 """
 
 import multiprocessing
@@ -20,29 +35,24 @@ from typing import Any
 from app.schema import ToolResult
 from app.tool.base import BaseTool
 
+
 # ---------------------------------------------------------------------------
-# Generous limits
+# Limits — unlimited output, task-duration timeouts
 # ---------------------------------------------------------------------------
 
-DEFAULT_TIMEOUT     = 120    # 2 minutes default
-MAX_TIMEOUT         = 600    # 10 minutes max
-MIN_TIMEOUT         = 1
-MAX_OUTPUT_BYTES    = 524_288   # 512 KB
-
-# rlimit caps (applied when available)
-MAX_CPU_SECONDS     = 300    # 5 minutes CPU time
-MAX_MEMORY_BYTES    = 2 * 1024 * 1024 * 1024  # 2 GB virtual memory
+DEFAULT_TIMEOUT  = 3600      # 1 hour
+MAX_TIMEOUT      = 86400     # 24 hours
+MIN_TIMEOUT      = 1
+MAX_MEMORY_BYTES = 2 * 1024 * 1024 * 1024   # 2 GB virtual memory (rlimit)
 
 
 # ---------------------------------------------------------------------------
-# Worker
+# Worker subprocess
 # ---------------------------------------------------------------------------
 
 def _worker(code: str, result_queue: multiprocessing.Queue) -> None:
-    # Apply resource limits (Unix only, best-effort)
     try:
         import resource
-        resource.setrlimit(resource.RLIMIT_CPU, (MAX_CPU_SECONDS, MAX_CPU_SECONDS))
         resource.setrlimit(resource.RLIMIT_AS, (MAX_MEMORY_BYTES, MAX_MEMORY_BYTES))
     except Exception:
         pass
@@ -64,9 +74,6 @@ def _worker(code: str, result_queue: multiprocessing.Queue) -> None:
         sys.stdout = old_stdout
         sys.stderr = old_stderr
 
-    if len(out.encode()) > MAX_OUTPUT_BYTES:
-        out = out[:MAX_OUTPUT_BYTES] + f"\n... [truncated at {MAX_OUTPUT_BYTES // 1024} KB]"
-
     result_queue.put({"output": out, "error": err or None})
 
 
@@ -78,10 +85,12 @@ class PythonExecute(BaseTool):
     name = "python_execute"
     description = (
         "Execute Python code in an isolated subprocess with full system access. "
-        f"Default timeout: {DEFAULT_TIMEOUT}s (max {MAX_TIMEOUT}s). "
-        "All imports, filesystem operations, network calls, and subprocess executions "
-        "are permitted. Use print() to capture output. "
-        "Output capped at 512 KB."
+        f"Default timeout: {DEFAULT_TIMEOUT}s (1h). "
+        f"Max timeout: {MAX_TIMEOUT}s (24h) for training runs, batch jobs, crawlers. "
+        "Full output always returned — no truncation. "
+        "All imports, filesystem, network, subprocess, ML ops are permitted. "
+        "Use print() to capture output. "
+        "Only fork bombs and /dev/sda writes are blocked."
     )
     parameters = {
         "type": "object",
@@ -92,7 +101,11 @@ class PythonExecute(BaseTool):
             },
             "timeout": {
                 "type": "integer",
-                "description": f"Timeout in seconds (min {MIN_TIMEOUT}, max {MAX_TIMEOUT}, default {DEFAULT_TIMEOUT}).",
+                "description": (
+                    f"Timeout in seconds. Default {DEFAULT_TIMEOUT}s (1h). "
+                    f"Max {MAX_TIMEOUT}s (24h) for long-running tasks. "
+                    "Set higher for ML training, large data processing."
+                ),
                 "default": DEFAULT_TIMEOUT,
             },
         },
@@ -109,28 +122,29 @@ class PythonExecute(BaseTool):
 
         if proc.is_alive():
             proc.terminate()
-            proc.join(timeout=3)
+            proc.join(timeout=5)
             if proc.is_alive():
                 proc.kill()
             return ToolResult(
                 error=(
-                    f"⏱ Execution timed out after {timeout}s. "
-                    "Consider reducing data size, adding early exits, "
-                    f"or increasing timeout (max {MAX_TIMEOUT}s)."
+                    f"Execution timed out after {timeout}s. "
+                    "Consider: increasing timeout (max 86400s = 24h), "
+                    "adding progress checkpoints, running in background via bash, "
+                    "or splitting the task into smaller steps."
                 )
             )
 
         try:
             result = result_queue.get_nowait()
         except queue.Empty:
-            return ToolResult(error="No result from subprocess (process crashed).")
+            return ToolResult(error="Subprocess crashed with no result. Check for memory errors or OS-level issues.")
 
         output = (result.get("output") or "").strip()
-        error = result.get("error")
+        error  = result.get("error")
 
         if error:
             return ToolResult(
                 output=output or None,
-                error=f"Python error:\n{error}\n\nFix and retry.",
+                error=f"Python error:\n{error}\n\nAnalyse the traceback and fix the code.",
             )
         return ToolResult(output=output or "(code ran successfully, no output)")
