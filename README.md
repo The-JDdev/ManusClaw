@@ -5,7 +5,7 @@
 <h1>🦾 ManusClaw v3.1</h1>
 
 <p><strong>The open-source autonomous AI operating system.<br/>
-Multi-agent · PAORR loop · Universal LLM · WebSocket server · 3-tier permissions · SQLite memory · Task-complete execution</strong></p>
+Multi-agent · PAORR loop · Universal LLM · WebSocket server · 3-tier permissions · SQLite memory · Mobile-ready · Task-complete execution</strong></p>
 
 <p><em>Created by <a href="https://github.com/The-JDdev">The-JDdev (SHS Shobuj)</a> — JD Lab</em></p>
 
@@ -18,6 +18,7 @@ Multi-agent · PAORR loop · Universal LLM · WebSocket server · 3-tier permiss
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-orange)](https://github.com/The-JDdev/ManusClaw/pulls)
 [![FastAPI](https://img.shields.io/badge/FastAPI-WebSocket-009688?logo=fastapi)](https://fastapi.tiangolo.com/)
 [![Pydantic v2](https://img.shields.io/badge/pydantic-v2-red)](https://docs.pydantic.dev/latest/)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000)](https://github.com/psf/black)
 
 </div>
 
@@ -27,16 +28,16 @@ Multi-agent · PAORR loop · Universal LLM · WebSocket server · 3-tier permiss
 
 - [What is ManusClaw?](#-what-is-manusclaw)
 - [v3.1 — What's New](#-v31--whats-new)
-- [Core Philosophy: Task-Complete Execution](#-core-philosophy-task-complete-execution)
+- [v3.0 — What's New](#-v30--whats-new)
+- [Task-Complete Execution Philosophy](#-task-complete-execution-philosophy)
 - [Architecture Overview](#-architecture-overview)
 - [Universal LLM Router](#-universal-llm-router)
-- [PAORR Loop & Tool Intelligence](#-paorr-loop--tool-intelligence)
 - [Multi-Agent Pipeline](#-multi-agent-pipeline)
 - [Memory System](#-memory-system)
 - [Permission System](#-permission-system)
 - [SQLite Session Logging](#-sqlite-session-logging)
 - [WebSocket Server & Web UI](#-websocket-server--web-ui)
-- [Safety Guardrails](#-safety-guardrails)
+- [PAORR Loop & Tool Intelligence](#-paorr-loop--tool-intelligence)
 - [Installation](#-installation)
 - [Configuration](#-configuration)
 - [Usage](#-usage)
@@ -50,328 +51,499 @@ Multi-agent · PAORR loop · Universal LLM · WebSocket server · 3-tier permiss
 
 ## 🤖 What is ManusClaw?
 
-ManusClaw is a **terminal-first, open-source autonomous AI agent framework** built in Python. It connects any LLM (OpenAI, Anthropic, Google, Ollama, OpenRouter, or any OpenAI-compatible endpoint) to a rich tool ecosystem and a production-grade multi-agent orchestration layer.
+**ManusClaw** is a production-grade, open-source **autonomous AI operating system** built entirely in Python. It combines the best ideas from MetaGPT, AutoGPT, OpenCode, and Manus into a single unified framework that runs from your terminal — or your browser.
 
-You give it a goal. It plans, acts, observes, reflects, and retries until the task is done — not until a timer runs out.
+> **Identity:** Every ManusClaw agent runs with a hardcoded identity: *"You are ManusClaw, an autonomous AI engine created by The-JDdev (SHS Shobuj)."* The agent does not identify as any base LLM provider.
+
+ManusClaw is designed for developers, researchers, and power users who want:
+- A **fully self-hosted** alternative to commercial agent products
+- **Zero-vendor-lock-in** — swap LLMs with a single config change
+- **Full system access** — no artificial restrictions on what the agent can do
+- **Complete transparency** — every decision, tool call, and retry logged in colour
 
 ---
 
 ## 🚀 v3.1 — What's New
 
-| Feature | Detail |
-|---|---|
-| **Task-Complete Execution** | No DEFAULT timeout, no MAX cap. Tools run until the job is done. |
-| **Unlimited Output** | `bash` and `python_execute` return full output always — no byte truncation. |
-| **Dynamic Deadlines** | Pass `timeout=N` only when you need a hard kill. Omit for run-to-completion. |
-| **Full v3.0 stack** | LLM router, multi-agent roles, STM+LTM memory, permissions, audit log, WebSocket server |
+| System | v3.0 | v3.1 |
+|---|---|---|
+| **Tool execution** | Default 2min, max 10min, 512 KB output cap | **No default, no max — runs until task done. Full output always returned.** |
+| **Timeout model** | Fixed DEFAULT + MAX caps | **Dynamic: pass `timeout=N` only when you need a deadline. Omit = run forever.** |
+| **Output cap** | 512 KB (truncated) | **No cap — complete output always returned to the agent** |
 
 ---
 
-## ⚙️ Core Philosophy: Task-Complete Execution
+## 🚀 v3.0 — What's New
 
-> **"Kaam khatm hone tak rukna nahi — chahe 2 minute lage, 20 minute lage, ya 3 ghante."**
+| System | v2.x | v3.0 |
+|---|---|---|
+| **LLM routing** | Provider-specific (OpenAI, Anthropic) | Universal dual-mode: official SDKs + any OpenAI-compatible API |
+| **Agent architecture** | Single Manus agent | Multi-role pipeline: PM → Architect → Engineer → QA |
+| **Memory** | Short-term context buffer | Two-tier: ShortTermMemory + RAG LongTermMemory (SQLite FTS5) |
+| **Audit log** | None | Full SQLite session/message/tool-call DB |
+| **Permissions** | Hard-deny only | 3-tier: Allow / Ask / Deny + Build Mode / Plan Mode |
+| **Web interface** | None | FastAPI WebSocket server + manusclaw-web HTML/JS/Tailwind UI |
+| **Mobile support** | None | No-Docker fallback, full CORS, Termux-compatible |
+| **Tool limits** | 64 KB / 30s | Unlimited output / task-complete duration |
+
+---
+
+## ⏱️ Task-Complete Execution Philosophy
+
+> *"Kaam khatm hone tak rukna nahi — chahe 2 minute lage, 20 minute lage, ya 3 ghante."*
 > *(Don't stop until the work is done — whether it takes 2 minutes, 20, or 3 hours.)*
 
-ManusClaw tools have **no hardcoded timeout and no output size limit**. The agent decides when it is done, not a clock.
-
-```python
-# bash — runs until the compile finishes, however long that takes
-bash.execute("make -j$(nproc)")
-
-# python_execute — runs until the training loop completes
-python_execute.execute(open("train.py").read())
-
-# explicit deadline — only when YOU need one
-bash.execute("curl ...", timeout=30)   # kill if still going after 30s
-```
+ManusClaw tools have **no hardcoded timeout and no output size limit**. The agent decides when it is done — not a clock, not a byte counter.
 
 ### How timeout works
 
-| Call | Behaviour |
+| How you call it | What happens |
 |---|---|
-| `timeout` omitted / `None` | Runs until natural completion. Never killed by the framework. |
-| `timeout=60` | Killed after exactly 60 seconds if still running. |
+| `timeout` omitted / `None` | Runs until natural completion. The framework never kills it. |
+| `timeout=120` | Killed after exactly 120 seconds if still running. |
 | `timeout=7200` | Killed after exactly 2 hours if still running. |
 
-The framework never decides what is "too long". You do — or you don't, and it just runs.
+```python
+# Runs until the compile finishes — could be 30s or 30 minutes
+bash.execute("make -j$(nproc)")
+
+# Runs until the training loop finishes — could be hours
+python_execute.execute(open("train.py").read())
+
+# Only use timeout= when YOU need an explicit hard deadline
+bash.execute("curl https://api.example.com/ping", timeout=10)
+```
+
+### Output
+
+Full stdout + stderr is always returned to the agent — no byte truncation, ever. The agent needs complete output to reason, debug, and iterate correctly. Cutting the output is a reasoning bug.
 
 ---
 
-## 🏗️ Architecture Overview
+## 🏗 Architecture Overview
 
 ```
-User / API / Web UI
-        │
-        ▼
-  ┌─────────────────────────────────────────┐
-  │           ManusClaw Core Engine         │
-  │                                         │
-  │  ┌─────────────┐   ┌─────────────────┐  │
-  │  │  LLM Router │   │  Permission Gate │  │
-  │  │  dual-mode  │   │  Allow/Ask/Deny  │  │
-  │  └──────┬──────┘   └────────┬────────┘  │
-  │         │                   │            │
-  │  ┌──────▼───────────────────▼────────┐  │
-  │  │         PAORR Agent Loop          │  │
-  │  │  Plan → Act → Observe →           │  │
-  │  │  Reflect → Retry (max 4x)         │  │
-  │  └──────────────┬────────────────────┘  │
-  │                 │                        │
-  │  ┌──────────────▼────────────────────┐  │
-  │  │         Multi-Agent DAG           │  │
-  │  │  PM → Architect → Engineer → QA   │  │
-  │  └──────────────┬────────────────────┘  │
-  │                 │                        │
-  │  ┌──────────────▼────────────────────┐  │
-  │  │          Tool Layer               │  │
-  │  │  bash · python_execute · browser  │  │
-  │  │  web_search · file · ask_human    │  │
-  │  └──────────────┬────────────────────┘  │
-  │                 │                        │
-  │  ┌──────────────▼────────────────────┐  │
-  │  │       Memory & Audit              │  │
-  │  │  STM (task history) + LTM (RAG)   │  │
-  │  │  SQLite session log               │  │
-  │  └───────────────────────────────────┘  │
-  └─────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────┐
+│                    ManusClaw v3.1 Stack                        │
+├────────────────────────────────────────────────────────────────┤
+│  Entry Points                                                  │
+│  ┌─────────┐  ┌──────────────┐  ┌────────────┐  ┌──────────┐ │
+│  │ main.py │  │ run_flow.py  │  │run_multi   │  │run_server│ │
+│  │  (CLI)  │  │ (PlanFlow)   │  │_agent.py   │  │.py (WS)  │ │
+│  └────┬────┘  └──────┬───────┘  └─────┬──────┘  └────┬─────┘ │
+├───────┼───────────────┼───────────────┼───────────────┼────────┤
+│  Orchestration Layer                                           │
+│  ┌────▼───────────────▼───────────────▼────────────────────┐  │
+│  │              MultiAgentOrchestrator (DAG)                │  │
+│  │  ProductManager → Architect → Engineer → QA              │  │
+│  │  Async message bus · Topological sort · Re-planning      │  │
+│  └────────────────────────┬─────────────────────────────────┘  │
+│                           │                                    │
+│  Agent Layer              │                                    │
+│  ┌────────────────────────▼─────────────────────────────────┐  │
+│  │  BaseAgent (identity, memory, permissions, DB logging)   │  │
+│  │    └── ReActAgent (PAORR loop)                           │  │
+│  │           └── ToolCallAgent (function calling, retry)    │  │
+│  │                  └── Manus (full tool suite)             │  │
+│  └────────────────────────┬─────────────────────────────────┘  │
+│                           │                                    │
+│  Support Systems          │                                    │
+│  ┌─────────┐ ┌──────────┐ │ ┌───────────┐ ┌───────────────┐  │
+│  │MemoryDB │ │Permission│ │ │ToolSelect │ │  LLM Router   │  │
+│  │STM+LTM  │ │Gate      │ │ │ Scoring   │ │ Dual-Mode     │  │
+│  └─────────┘ └──────────┘ │ └───────────┘ └───────────────┘  │
+│                           │                                    │
+│  Tool Layer               │                                    │
+│  ┌────────────────────────▼─────────────────────────────────┐  │
+│  │  python_execute · bash · str_replace_editor · browser    │  │
+│  │  web_search · crawl · data_viz · ask_human · terminate   │  │
+│  └──────────────────────────────────────────────────────────┘  │
+└────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 🔀 Universal LLM Router
+## 🌍 Universal LLM Router
 
-Connect any LLM — official SDKs or any OpenAI-compatible endpoint.
+ManusClaw v3 supports **two seamless modes** of LLM connection:
 
-**Mode 1 — Official providers** (`provider` key in config):
+### Mode 1 — Official Providers (The Standard Way)
 
-| Provider | Models |
-|---|---|
-| `openai` | gpt-4o, gpt-4-turbo, gpt-3.5-turbo |
-| `anthropic` | claude-3-5-sonnet, claude-3-haiku |
-| `google` | gemini-1.5-pro, gemini-flash |
-| `mock` | Built-in — zero credentials needed |
-
-**Mode 2 — Agnostic / Universal** (set `base_url`):
-
-Works with OpenRouter, Ollama, LMStudio, vLLM, Groq, Together, Perplexity, any proxy — just point `base_url` at any OpenAI-compatible endpoint.
+Set `provider` explicitly to route through official SDKs:
 
 ```toml
-# config.toml — OpenRouter
+[llm]
+provider    = "openai"
+model       = "gpt-4o"
+api_key     = ""   # or OPENAI_API_KEY env var
+max_tokens  = 8192
+temperature = 0.0
+```
+
+| Provider | `provider` value | Notes |
+|---|---|---|
+| OpenAI | `"openai"` | GPT-4o, GPT-4 Turbo, o1, o3 |
+| Anthropic | `"anthropic"` | Claude 3.5 Sonnet, Claude 3 Opus |
+| Google | `"google"` | Gemini 1.5 Pro, Gemini Flash |
+| MockLLM | `"mock"` | Zero credentials — always works |
+
+### Mode 2 — Universal / Agnostic (The Hacker Way)
+
+Just set `base_url` + `api_key` + `model`. No `provider` needed. The system sends a standard OpenAI-compatible request automatically.
+
+```toml
+# OpenRouter — access 100+ models with one API key
 [llm]
 base_url = "https://openrouter.ai/api/v1"
 api_key  = "sk-or-..."
-model    = "anthropic/claude-3.5-sonnet"
+model    = "anthropic/claude-3-5-sonnet"
 
-# config.toml — Local Ollama
+# Ollama — fully local, zero cost
 [llm]
 base_url = "http://localhost:11434/v1"
 api_key  = "none"
 model    = "llama3.2:3b"
+
+# LM Studio — local GUI + API
+[llm]
+base_url = "http://localhost:1234/v1"
+api_key  = "lm-studio"
+model    = "mistral-7b-instruct"
+
+# Groq — ultra-fast inference
+[llm]
+base_url = "https://api.groq.com/openai/v1"
+api_key  = "gsk_..."
+model    = "llama-3.1-70b-versatile"
+
+# Any custom proxy / AgentRouter / vLLM
+[llm]
+base_url = "http://your-proxy:8080/v1"
+api_key  = "your-key"
+model    = "your-model-name"
 ```
+
+**How it works:** The router detects that `base_url` is set and `provider` is empty/unknown → sends a standard `POST /chat/completions` request with `Authorization: Bearer <api_key>`. No hardcoded provider checks. Works with anything OpenAI-compatible.
 
 ---
 
-## 🔥 PAORR Loop & Tool Intelligence
+## 🤖 Multi-Agent Pipeline
 
-Every agent step runs the full **Plan → Act → Observe → Reflect → Retry** cycle:
+ManusClaw v3 implements the **MetaGPT-inspired multi-role architecture**. Four specialist agents communicate via an async message bus and execute in DAG (topological) order.
 
-```
-PLAN    — LLM reasons about the current sub-goal
-ACT     — calls the highest-confidence tool
-OBSERVE — captures full output (no truncation)
-REFLECT — LLM judges: "Was the goal solved?"
-RETRY   — if not solved, feeds error back and tries again (max 4x)
-```
+### The Four Roles
 
-### Tool Confidence Scoring
+| Role | Responsibility | Output |
+|---|---|---|
+| **ProductManager** | Receives user goal → writes PRD | Objective, scope, acceptance criteria, priorities |
+| **Architect** | Reads PRD → writes system design | File structure, component map, data flow, task DAG |
+| **Engineer** | Reads design → implements using Manus tools | Running code, files in workspace/, verified outputs |
+| **QA** | Reads implementation → validates against criteria | QA report, PASS/FAIL per criterion, verdict |
 
-Before every tool call, `ToolSelector` scores all available tools against the current goal:
-
-```
-[ToolSelector] Goal: "Download and parse arxiv:2401.00001"
-  [████████████████░░░░]  82%  web_search    ← download(+0.55), parse(+0.35), recency(+0.10)
-  [████████████░░░░░░░░]  62%  bash          ← curl(+0.45), recency(-0.10)
-  [████░░░░░░░░░░░░░░░░]  22%  python_execute← parse(+0.35), recency-penalty(-0.10)
-  [██░░░░░░░░░░░░░░░░░░]  10%  browser_use   ← general capability
-```
-
-The ranked list + rationale is injected into the LLM prompt so it makes a deliberate, informed pick — not a random one.
-
-### Exponential Backoff on Failure
+### The OTAP Loop (per role)
 
 ```
-Attempt 1 → fail → wait 1.0s
-Attempt 2 → fail → wait 2.4s
-Attempt 3 → fail → wait 5.3s
-Attempt 4 → fail → wait 11.6s → give up, log error, move to next step
+Observe  — read messages from the async bus
+Think    — reason with specialist prompt + LLM
+Act      — call tools (Engineer/QA) or generate document (PM/Architect)
+Publish  — push output to the bus for downstream roles
 ```
 
-### Doom-Loop Detection
+### DAG execution with topological sort
 
-`ShortTermMemory` tracks every failed tool call. If the agent tries the same tool with the same arguments twice consecutively, it is automatically blocked and forced to choose a different approach.
-
----
-
-## 🤝 Multi-Agent Pipeline
-
-For complex tasks, ManusClaw spins up a full agent team routed through a DAG orchestrator:
-
+```python
+# Default dependency graph
+deps = {
+    "product_manager": [],
+    "architect":       ["product_manager"],
+    "engineer":        ["architect"],
+    "qa":              ["engineer"],
+}
+# Kahn's algorithm computes: PM → Architect → Engineer → QA
+# Custom pipelines: inject your own roles + deps
 ```
-PM          → writes structured requirements
-Architect   → designs system, picks tech stack
-Engineer    → writes and runs the code
-QA          → tests, validates, reports bugs
-```
+
+### Running the pipeline
 
 ```bash
-python run_multi_agent.py "Build a REST API that scrapes Hacker News front page"
+# CLI
+python run_multi_agent.py "Build a REST API for a todo list with SQLite backend"
+
+# Plan Mode (QA before every tool call)
+python run_multi_agent.py --mode plan "Design a web scraper"
+
+# Via REST API
+curl -X POST http://localhost:8765/multi-agent \
+  -H "Content-Type: application/json" \
+  -d '{"goal": "Build a calculator app in Python", "mode": "build"}'
 ```
 
 ---
 
 ## 🧠 Memory System
 
-### Short-Term Memory (STM)
-- Rolling task history — last N steps, tool calls, and results
-- Failed-call cache — prevents doom-loops
-- Injected into every LLM prompt as context
+### Tier 1 — ShortTermMemory (context buffer)
 
-### Long-Term Memory (LTM)
-- TF-IDF + cosine similarity RAG over past task outcomes
-- Automatically retrieves relevant past experience for new tasks
-- Persists across sessions (SQLite-backed)
+```python
+class ShortTermMemory(Memory):
+    max_messages: int = 100       # rolling window
+    # System messages pinned (never trimmed)
+    # Oldest non-system messages trimmed first
+    # Context refresh injected every 5 steps
+    # snapshot() / restore() for Plan Mode dry-runs
+```
+
+### Tier 2 — LongTermMemory (persistent RAG)
+
+```python
+class LongTermMemory:
+    # SQLite backend at workspace/.memory/long_term.db
+    # FTS5 full-text search (primary)
+    # LIKE fallback if FTS fails
+    # Never crashes if vector library is missing
+```
+
+```python
+# Store knowledge
+await ltm.store("Python asyncio event loop runs one coroutine at a time", meta={"source": "docs"})
+
+# Retrieve relevant memory
+results = await ltm.search("how does asyncio work", k=5)
+# → [{id, content, meta, score, source}, ...]
+```
+
+### Context refresh injection
+
+Every 5 steps, the agent's TaskHistory (all prior observations and reflections) is compressed into a summary and injected back into the conversation, so the LLM never loses track across long runs.
 
 ---
 
 ## 🛡️ Permission System
 
-Three-tier gate on every tool call:
+Three-tier permission model with two agent modes:
 
-| Tier | Action |
-|---|---|
-| `ALLOW` | Tool runs immediately — no prompt |
-| `ASK` | Agent pauses and asks the human for approval |
-| `DENY` | Tool call is blocked entirely |
+### Tiers
 
-Two modes: **BUILD** (autonomous, executes freely) and **PLAN** (restricted, read-only tools only).
+| Tier | Examples | Behaviour |
+|---|---|---|
+| **ALLOW** | `web_search`, `crawl`, `ask_human`, `terminate` | Automatic — never blocked |
+| **ASK** | `bash`, `python_execute`, `str_replace_editor`, `browser_use` | Auto-approved in Build Mode; pauses for confirmation in Plan Mode |
+| **DENY** | `rm -rf /`, fork bombs, `dd` to block devices, `mkfs` | Unconditionally blocked regardless of mode |
+
+### The ONLY blocked operations
+
+```
+rm -rf /          →  wipes root filesystem
+rm -rf /*         →  wipes root filesystem  
+:(){ :|:& };:     →  fork bomb
+dd if=/dev/zero   →  overwrites block devices
+mkfs.*            →  formats disks
+kill -9 -1        →  kills all processes
+```
+
+**Everything else is permitted.** `sudo`, `apt`, `pip`, `git`, `curl`, `systemctl`, `crontab`, `/etc` edits, complex scripts, network operations, global package installs — all fully unblocked.
+
+### Agent Modes
+
+```toml
+[runflow]
+mode = "build"   # "build" = full auto | "plan" = asks before ASK actions
+```
 
 ```bash
-python main.py "Deploy to prod" --mode plan   # PLAN mode — review before anything runs
-python main.py "Deploy to prod"               # BUILD mode — fully autonomous
+# Plan Mode — agent shows pending actions and asks before executing
+python main.py --mode plan "Refactor the entire codebase"
+
+# Build Mode — fully autonomous (default)
+python main.py "Deploy the application"
+```
+
+**Plan Mode prompt example:**
+
+```
+⏸  [PLAN MODE] Pending action requires approval:
+   Tool: bash
+   Preview: pip install -r requirements.txt
+   Approve? [y/N]: 
 ```
 
 ---
 
-## 🗃️ SQLite Session Logging
+## 📊 SQLite Session Logging
 
-Every run is fully audited to `~/.manusclaw/sessions.db`:
+Every agent run is fully audited in `workspace/.sessions/manusclaw.db`:
 
-| Column | Content |
-|---|---|
-| `task_id` | UUID per run |
-| `timestamp` | ISO 8601 |
-| `role` | user / assistant / tool |
-| `content` | message or tool result |
-| `tool_name` | which tool was called |
-| `duration_ms` | how long it took |
+```sql
+-- Three tables
+sessions    -- id, goal, agent_name, mode, started_at, ended_at, state, step_count
+messages    -- session_id, role, content, ts
+tool_calls  -- session_id, step, tool_name, args, output, error, success, attempt, duration_ms, ts
+```
+
+**Query via REST API:**
 
 ```bash
-sqlite3 ~/.manusclaw/sessions.db "SELECT * FROM events ORDER BY timestamp DESC LIMIT 20;"
+# List all sessions
+curl http://localhost:8765/sessions
+
+# Get all tool calls for a session
+curl http://localhost:8765/sessions/abc123def456/tool_calls
+
+# Get all messages for a session
+curl http://localhost:8765/sessions/abc123def456/messages
 ```
+
+**Recover any run:** Since every tool call is logged with input/output, you can replay or inspect any execution — even if it crashed mid-way.
 
 ---
 
 ## 🌐 WebSocket Server & Web UI
 
-### Start the API server
+### Server startup
 
 ```bash
-python run_server.py
-# → ws://localhost:8000/ws
-# → http://localhost:8000/docs  (Swagger UI)
+pip install uvicorn[standard] fastapi
+python run_server.py --host 0.0.0.0 --port 8765
 ```
 
-### Companion Web UI
+```
+███╗   ███╗ █████╗ ███╗   ██╗██╗   ██╗███████╗
+████╗ ████║██╔══██╗████╗  ██║██║   ██║██╔════╝
+██╔████╔██║███████║██╔██╗ ██║██║   ██║███████╗
+██║╚██╔╝██║██╔══██║██║╚██╗██║██║   ██║╚════██║
+██║ ╚═╝ ██║██║  ██║██║ ╚████║╚██████╔╝███████║
+╚═╝     ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝ ╚══════╝
+ManusClaw v3.1 — Agent Server  by The-JDdev (SHS Shobuj)
 
-→ **[github.com/The-JDdev/manusclaw-web](https://github.com/The-JDdev/manusclaw-web)**
+Listening: http://0.0.0.0:8765
+REST:      http://0.0.0.0:8765/run
+WebSocket: ws://0.0.0.0:8765/ws/<session_id>
+Sessions:  http://0.0.0.0:8765/sessions
+Health:    http://0.0.0.0:8765/healthz
+```
 
-Full HTML/JS/Tailwind interface — no build step, no Node.js, open in any browser:
-- Real-time chat via WebSocket
-- Live tool log with confidence score bars
-- File tree viewer
-- Session history
+### REST API
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/healthz` | Health check |
+| `POST` | `/run` | Fire-and-forget agent run (returns session_id immediately) |
+| `POST` | `/run/sync` | Synchronous run (waits for completion) |
+| `POST` | `/multi-agent` | Run PM → Architect → Engineer → QA pipeline |
+| `GET` | `/sessions` | List all sessions |
+| `GET` | `/sessions/{id}/messages` | Get all messages for a session |
+| `GET` | `/sessions/{id}/tool_calls` | Get all tool calls for a session |
+| `GET` | `/tools` | List all available tools |
+
+### WebSocket protocol
+
+```javascript
+// Connect
+const ws = new WebSocket("ws://localhost:8765/ws/my-session-123");
+
+// Send a task
+ws.send(JSON.stringify({ prompt: "Search for Python 3.13 release notes", mode: "build" }));
+
+// Receive streaming events
+// { type: "agent_start",  prompt: "..." }
+// { type: "step_start",  step: 1, ts: ... }
+// { type: "step_output", step: 1, content: "..." }
+// { type: "agent_done",  output: "...", state: "FINISHED" }
+// { type: "agent_error", error: "..." }
+```
+
+### manusclaw-web UI
+
+The companion web UI ([github.com/The-JDdev/manusclaw-web](https://github.com/The-JDdev/manusclaw-web)) connects to this server via WebSocket and provides:
+- **Chat interface** — send prompts, see streaming agent output
+- **File tree** — browse workspace/ in real time
+- **Terminal view** — see tool calls and tool outputs
+- **Session history** — browse all prior runs
+- **Mode switcher** — toggle Build/Plan mode
 
 ```bash
+# Self-hosted (open index.html in a browser — no build step)
 git clone https://github.com/The-JDdev/manusclaw-web
-cd manusclaw-web
-python3 -m http.server 3000
-# → http://localhost:3000
+open manusclaw-web/index.html
+
+# Point it at your backend (local or remote)
+# Set SERVER_URL in the UI to ws://your-server:8765
 ```
+
+**Full CORS** is enabled on the server — connect from GitHub Pages, Vercel, Termux `localhost`, or any origin without issues.
 
 ---
 
-## 🛡️ Safety Guardrails
+## 🔄 PAORR Loop & Tool Intelligence
 
-ManusClaw takes a **minimal, precise** approach to safety. Only operations that literally destroy the OS are blocked. Everything else is permitted.
+### The PAORR cycle (per step)
 
-### Blocked (hard deny — always, unconditionally):
-
-```bash
-rm -rf /          # destroys root filesystem
-rm -rf /*         # same
-fork bomb         # :(){:|:&};:
-dd if=/dev/zero of=/dev/sda   # wipes disk
-mkfs.*            # formats a partition
-wipefs            # nukes partition table
-kill -9 -1        # kills every process on the system
-shred /bin/*      # shreds system binaries
+```
+PLAN    → LLM writes numbered plan with success criteria (first step only)
+ACT     → ToolSelector scores all tools → ranked list injected into prompt
+          → LLM picks tool → executed with retry (max 4 attempts, exp. backoff)
+OBSERVE → ToolResult captured → Observation logged to TaskHistory + SQLite
+REFLECT → LLM judges: did this solve the sub-goal? (JSON: solved/reason/next)
+RETRY   → If not solved: error injected, re-score with failure penalty, re-ask
 ```
 
-### Permitted (everything else — no exceptions):
+### ToolSelector scoring
 
-```bash
-sudo anything     rm -rf ~/project    apt install xyz
-pip install xyz   docker run ...      systemctl restart nginx
-curl / wget       /etc edits          crontab changes
-git operations    ssh commands        npm / cargo / go build
-ml training       data crawlers       overnight batch jobs
+Before every tool call, all tools are scored 0–100% against the current sub-goal:
+
 ```
+┌─ TOOL INTELLIGENCE LAYER ─────────────────────────────────────┐
+│ Goal analysis: Write and run a Python script to compute...    │
+│                                                               │
+│  [████████████████████]  70%  python_execute                  │
+│  [██████████░░░░░░░░░░]  50%  str_replace_editor              │
+│  [██████░░░░░░░░░░░░░░]  30%  bash                            │
+│                                                               │
+│ ▶ Recommended: python_execute                                 │
+│   Reason: strongly recommended — signals: python(+0.45)...   │
+└───────────────────────────────────────────────────────────────┘
+```
+
+Scoring adapts across the run: tools that fail are penalised, recently-used tools get a mild penalty to encourage trying alternatives.
 
 ---
 
-## 📦 Installation
-
-```bash
-# Clone
-git clone https://github.com/The-JDdev/ManusClaw.git
-cd ManusClaw
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Configure your LLM (see Configuration below)
-cp config.example.toml config.toml
-nano config.toml
-
-# Run
-python main.py "Your task here"
-```
+## 🚀 Installation
 
 ### Requirements
 
+- Python **3.10+**
+- pip or uv
+- (Optional) Playwright — browser automation
+- (Optional) uvicorn — WebSocket server
+- (Optional) Docker — for extra isolation (not required)
+
+### Quick start
+
+```bash
+git clone https://github.com/The-JDdev/ManusClaw.git
+cd ManusClaw
+
+python -m venv .venv
+source .venv/bin/activate     # Windows: .venv\Scripts\activate
+
+pip install -r requirements.txt
+
+# Verify — zero credentials required
+python main.py "Print Hello from ManusClaw v3!"
 ```
-python >= 3.10
-fastapi
-uvicorn[standard]
-websockets
-anthropic
-openai
-google-generativeai
-pydantic >= 2.0
-loguru
-toml
-aiohttp
-sqlite3 (stdlib)
+
+### Install optional features
+
+```bash
+# WebSocket server
+pip install uvicorn[standard] fastapi
+
+# Browser automation
+pip install playwright && playwright install chromium
+
+# Async HTTP (for Universal LLM mode)
+pip install aiohttp
 ```
 
 ---
@@ -381,70 +553,116 @@ sqlite3 (stdlib)
 ```toml
 # config.toml
 
+# ─── LLM ────────────────────────────────────────────────────────
 [llm]
-# Option A — Official provider
-provider = "openai"
-api_key  = "sk-..."
-model    = "gpt-4o"
+# Mode 1: Official provider
+provider    = "openai"
+model       = "gpt-4o"
+max_tokens  = 8192
+temperature = 0.0
+# api_key   = ""   # or set OPENAI_API_KEY env var
 
-# Option B — Agnostic (OpenRouter, Ollama, any proxy)
-# base_url = "https://openrouter.ai/api/v1"
-# api_key  = "sk-or-..."
-# model    = "anthropic/claude-3.5-sonnet"
+# Mode 2: Universal (comment out provider, set base_url)
+# base_url  = "https://openrouter.ai/api/v1"
+# api_key   = "sk-or-..."
+# model     = "anthropic/claude-3-5-sonnet"
 
-# Option C — Local Ollama (no API key)
-# base_url = "http://localhost:11434/v1"
-# api_key  = "none"
-# model    = "llama3.2:3b"
+# ─── Execution ──────────────────────────────────────────────────
+workspace_dir = "workspace"
+max_steps     = 50             # per-agent step cap
 
-[agent]
-max_steps = 30        # max PAORR steps per run
-mode      = "build"   # "build" (autonomous) or "plan" (ask before acting)
+# ─── Agent Mode ─────────────────────────────────────────────────
+[runflow]
+mode                 = "build"   # "build" or "plan"
+enable_data_analysis = false
+timeout              = 7200      # 2-hour global cap
 
-[memory]
-stm_window   = 20     # how many steps to keep in short-term memory
-ltm_top_k    = 5      # how many past experiences to retrieve
+# ─── Browser ────────────────────────────────────────────────────
+[browser]
+headless           = true
+disable_security   = false
+max_content_length = 20000
 
-[server]
-host = "0.0.0.0"
-port = 8000
+# ─── Search ─────────────────────────────────────────────────────
+[search]
+engines     = ["duckduckgo", "bing"]
+max_results = 10
+
+# ─── Sandbox (optional Docker isolation) ───────────────────────
+[sandbox]
+enabled      = false
+docker_image = "python:3.11-slim"
+memory_limit = "512m"
+timeout      = 120
 ```
 
 ---
 
-## 🚀 Usage
+## 💻 Usage
 
-### Single-agent CLI
+### Single agent (CLI)
 
 ```bash
-python main.py "Write a Python web scraper for news.ycombinator.com"
-python main.py "Analyse this CSV and plot sales trends" --file data.csv
-python main.py "Set up a FastAPI project with auth" --mode plan
+# Argument
+python main.py "Research the top 5 Python web frameworks and save a comparison table to workspace/frameworks.md"
+
+# Interactive
+python main.py
+
+# Plan Mode
+python main.py --mode plan "Refactor this codebase"
 ```
 
 ### Multi-agent pipeline
 
 ```bash
-python run_multi_agent.py "Build a full-stack todo app with React + FastAPI"
+python run_multi_agent.py "Build a working CLI password manager in Python with AES encryption"
+```
+
+### PlanningFlow
+
+```bash
+python run_flow.py "Scrape the top 10 Hacker News stories and generate a summary PDF"
+```
+
+### MCP
+
+```bash
+python run_mcp.py --connection sse --server-url http://localhost:8000 --prompt "List all tools"
+python run_mcp.py --interactive
 ```
 
 ### WebSocket server
 
 ```bash
-python run_server.py
-# Then open manusclaw-web/index.html in your browser
+python run_server.py --host 0.0.0.0 --port 8765
 ```
 
-### Python API
+### Programmatic API
 
 ```python
 import asyncio
 from app.agent.manus import Manus
+from app.agent.orchestrator import MultiAgentOrchestrator
+from app.permissions.gate import AgentMode
+from app.memory.long_term import LongTermMemory
 
 async def main():
-    agent = Manus()
-    result = await agent.run("Summarise the top 10 Hacker News posts")
+    # Single agent
+    agent = Manus(mode=AgentMode.BUILD)
+    result = await agent.run("Write and test a Fibonacci function in Python")
     print(result)
+
+    # Multi-agent pipeline
+    orch = MultiAgentOrchestrator(mode=AgentMode.BUILD)
+    result = await orch.run("Build a REST API for a blog with SQLite")
+    print(result)
+
+    # Long-term memory
+    ltm = LongTermMemory()
+    await ltm.store("User prefers Python 3.11 and black formatting")
+    hits = await ltm.search("Python formatting preferences", k=3)
+    print(hits)
 
 asyncio.run(main())
 ```
@@ -453,18 +671,31 @@ asyncio.run(main())
 
 ## 📱 Mobile & Termux
 
-ManusClaw runs fully on Android via Termux — no root required.
+ManusClaw v3 runs on Android via **Termux** without Docker:
 
 ```bash
 # Termux setup
-pkg update && pkg upgrade
-pkg install python git
+pkg update && pkg install python python-pip git
+git clone https://github.com/The-JDdev/ManusClaw.git
+cd ManusClaw
 pip install -r requirements.txt
 
-# Point to a local Ollama or any API
-# Set base_url in config.toml → done
-python main.py "Your task"
+# Use Ollama on a PC and point Termux at it
+# config.toml:
+# base_url = "http://192.168.1.x:11434/v1"
+# api_key  = "none"
+# model    = "llama3.2:3b"
+
+python main.py "Help me write a bash script to organize my downloads folder"
+
+# Or start the server and connect from any browser on the same WiFi
+python run_server.py --port 8765
+# Open http://<termux-ip>:8765 from any device on the same network
 ```
+
+**No-Docker fallback:** If Docker is not available, `PythonExecute` automatically uses `multiprocessing.Process` isolation. `Bash` uses the native shell. Full functionality is preserved.
+
+**CORS:** The server allows all origins, so connecting a browser-hosted manusclaw-web UI to a Termux backend works out of the box.
 
 ---
 
@@ -472,95 +703,120 @@ python main.py "Your task"
 
 ```
 ManusClaw/
-├── main.py                     # CLI entry point
-├── run_server.py               # FastAPI + WebSocket server
-├── run_multi_agent.py          # Multi-agent pipeline runner
-├── config.toml                 # Your config (git-ignored)
-├── requirements.txt
-│
 ├── app/
 │   ├── agent/
-│   │   ├── base.py             # BaseAgent — MANUSCLAW_IDENTITY, run loop, audit
-│   │   ├── react.py            # ReActAgent — PAORR loop
-│   │   ├── toolcall.py         # ToolCallAgent — tool dispatch + retry + backoff
-│   │   ├── manus.py            # Manus — the main autonomous agent
-│   │   ├── orchestrator.py     # DAG multi-agent orchestrator
+│   │   ├── base.py              ← Identity, memory, permission, session DB
+│   │   ├── react.py             ← PAORR loop (think/act/observe/reflect/retry)
+│   │   ├── toolcall.py          ← Function calling + ToolSelector + retry
+│   │   ├── manus.py             ← Full orchestration, self-check injection
+│   │   ├── orchestrator.py      ← DAG multi-agent engine (Kahn's sort)
+│   │   ├── data_analysis.py
+│   │   ├── browser.py
+│   │   ├── mcp.py
 │   │   └── roles/
-│   │       ├── product_manager.py
-│   │       ├── architect.py
-│   │       ├── engineer.py
-│   │       └── qa.py
-│   │
-│   ├── llm/
-│   │   └── llm.py              # Universal dual-mode LLM router
-│   │
+│   │       ├── base_role.py     ← BaseRole, RoleMessage, RoleMessageBus
+│   │       ├── product_manager.py  ← PRD generation
+│   │       ├── architect.py     ← System design + task DAG
+│   │       ├── engineer.py      ← Code implementation via Manus
+│   │       └── qa.py            ← Validation + report
+│   ├── tool/
+│   │   ├── base.py              ← BaseTool, ToolResult, ToolCollection
+│   │   ├── selector.py          ← ToolSelector (confidence scoring)
+│   │   ├── python_execute.py    ← task-complete / no output cap / multiprocessing
+│   │   ├── bash.py              ← task-complete / no output cap / full system access
+│   │   ├── str_replace_editor.py
+│   │   ├── browser_use_tool.py
+│   │   ├── web_search.py
+│   │   ├── crawl4ai.py
+│   │   ├── planning.py
+│   │   ├── data_viz.py
+│   │   ├── ask_human.py
+│   │   └── terminate.py
 │   ├── memory/
-│   │   ├── short_term.py       # STM — task history + doom-loop detection
-│   │   └── long_term.py        # LTM — TF-IDF RAG over past tasks
-│   │
+│   │   ├── short_term.py        ← ShortTermMemory (rolling context buffer)
+│   │   └── long_term.py         ← LongTermMemory (SQLite FTS5 + LIKE fallback)
 │   ├── db/
-│   │   └── session.py          # SQLite session audit log
-│   │
+│   │   └── session.py           ← SQLite audit log (sessions/messages/tool_calls)
 │   ├── permissions/
-│   │   └── gate.py             # 3-tier Allow/Ask/Deny gate
-│   │
-│   ├── server/
-│   │   └── main.py             # FastAPI + WebSocket + CORS
-│   │
-│   └── tool/
-│       ├── bash.py             # Persistent shell — task-complete, no caps
-│       ├── python_execute.py   # Isolated Python — task-complete, no caps
-│       ├── selector.py         # Tool confidence scoring
-│       ├── web_search.py
-│       ├── browser_use_tool.py
-│       ├── str_replace_editor.py
-│       ├── ask_human.py
-│       └── terminate.py
+│   │   └── gate.py              ← 3-tier Allow/Ask/Deny + Build/Plan mode
+│   ├── flow/
+│   │   └── planning.py          ← PlanningFlow (re-planning on block)
+│   ├── mcp/
+│   │   ├── client.py
+│   │   └── server.py
+│   ├── sandbox/
+│   │   └── docker.py
+│   ├── llm/
+│   │   └── llm.py               ← Dual-mode router (official + universal)
+│   ├── schema.py                ← PAORR data models (Pydantic v2)
+│   ├── config.py
+│   ├── logger.py
+│   └── exceptions.py
+├── main.py                      ← Single-agent CLI
+├── run_flow.py                  ← PlanningFlow CLI
+├── run_multi_agent.py           ← Multi-agent pipeline CLI
+├── run_mcp.py                   ← MCP agent CLI
+├── run_mcp_server.py            ← MCP server host
+├── run_server.py                ← FastAPI WebSocket server
+├── config.toml
+├── requirements.txt
+├── workspace/                   ← Agent outputs
+│   ├── .memory/long_term.db     ← Long-term memory
+│   └── .sessions/manusclaw.db  ← Session audit log
+└── logs/                        ← Rotating structured logs
 ```
 
 ---
 
 ## 🤝 Contributing
 
-Pull requests are welcome. For major changes, open an issue first to discuss.
-
 ```bash
-git fork https://github.com/The-JDdev/ManusClaw
-git checkout -b feature/your-feature
-# make changes
-git commit -m "feat: your feature"
-git push origin feature/your-feature
-# open a PR
+git clone https://github.com/The-JDdev/ManusClaw.git
+cd ManusClaw
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
 ```
+
+Guidelines:
+- All tools must return `ToolResult` — never raise
+- All async code — no blocking calls in coroutines
+- Type-annotated Python (Pydantic v2)
+- Log with `from app.logger import logger`, not `print()`
+- Test with MockLLM first
 
 ---
 
 ## 📄 License
 
-MIT — see [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE). Built with passion at **JD Lab**.
 
 ---
 
-## 💙 Support The Vision
+## 💸 Support The Vision
 
-ManusClaw is built solo, published free, open to all.
-If it saves you time or powers your project, consider supporting:
-
-| Method | Address |
-|---|---|
-| **USDT TRC20** | `TH75J4zaMPwhyR3QxEFdwTCgU2Pp3yPUEr` |
-| **WebMoney WMT** | `T202226490170` |
-| **WebMoney WMZ** | `Z430378899900` |
-| **bKash** | `01310211442` |
-
-Every contribution — however small — keeps this project alive and improving.
-
----
+ManusClaw is free, open-source, and actively developed by one person.
+If it powers your research, saves you hours, or inspires you — please consider supporting.
 
 <div align="center">
 
-**Built by [The-JDdev (SHS Shobuj)](https://github.com/The-JDdev) — JD Lab**
+---
 
-*"Autonomous. Persistent. Unstoppable."*
+### 🙏 Donation Vault
+
+| Method | Address |
+|---|---|
+| 🪙 **USDT (TRC20)** | `TH75J4zaMPwhyR3QxEFdwTCgU2Pp3yPUEr` |
+| 💼 **WebMoney (WMT)** | `T202226490170` |
+| 💵 **WebMoney (WMZ)** | `Z430378899900` |
+| 📱 **bKash (BD)** | `01310211442` |
+
+---
+
+**Every contribution keeps this project alive. Thank you. ❤️**
+
+*— The-JDdev (SHS Shobuj) · JD Lab*
+
+[![GitHub](https://img.shields.io/badge/GitHub-The--JDdev%2FManusClaw-181717?logo=github&style=for-the-badge)](https://github.com/The-JDdev/ManusClaw)
+[![Stars](https://img.shields.io/github/stars/The-JDdev/ManusClaw?style=for-the-badge&logo=github)](https://github.com/The-JDdev/ManusClaw/stargazers)
 
 </div>
