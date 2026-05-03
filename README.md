@@ -1,24 +1,24 @@
 <div align="center">
 
-<img src="https://placehold.co/1200x400/0d1117/58a6ff?text=ManusClaw+v3.1+%E2%80%94+The+Autonomous+AI+Operating+System&font=raleway" alt="ManusClaw Banner" width="100%" />
+```
+  __  __                      ______ _               
+ |  \/  |                    |  ____| |              
+ | \  / | __ _ _ __  _   _ _| |__  | | _____      __
+ | |\/| |/ _` | '_ \| | | / /  __| | |/ _ \ \ /\ / /
+ | |  | | (_| | | | | |_| / /| |____| | (_) \ V  V / 
+ |_|  |_|\__,_|_| |_|\__,/_/ |______|_|\___/ \_/\_/  
+```
 
-<h1>🦾 ManusClaw v3.1</h1>
+**The Open-Source Autonomous AI Ecosystem**
 
-<p><strong>The open-source autonomous AI operating system.<br/>
-Multi-agent · PAORR loop · Universal LLM · WebSocket server · 3-tier permissions · SQLite memory · Mobile-ready · Task-complete execution</strong></p>
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://python.org)
+[![Version](https://img.shields.io/badge/version-3.2.0-brightgreen.svg)](https://github.com/The-JDdev/ManusClaw/releases)
+[![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows%20%7C%20Docker%20%7C%20Termux-lightgrey.svg)]()
 
-<p><em>Created by <a href="https://github.com/The-JDdev">The-JDdev (SHS Shobuj)</a> — JD Lab</em></p>
+*Built from Bangladesh, running everywhere.*
 
-[![Python](https://img.shields.io/badge/python-3.10%2B-blue?logo=python&logoColor=white)](https://www.python.org/)
-[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Version](https://img.shields.io/badge/version-3.1.0-blueviolet)](https://github.com/The-JDdev/ManusClaw/releases)
-[![Stars](https://img.shields.io/github/stars/The-JDdev/ManusClaw?style=social)](https://github.com/The-JDdev/ManusClaw/stargazers)
-[![Forks](https://img.shields.io/github/forks/The-JDdev/ManusClaw?style=social)](https://github.com/The-JDdev/ManusClaw/network/members)
-[![Issues](https://img.shields.io/github/issues/The-JDdev/ManusClaw)](https://github.com/The-JDdev/ManusClaw/issues)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-orange)](https://github.com/The-JDdev/ManusClaw/pulls)
-[![FastAPI](https://img.shields.io/badge/FastAPI-WebSocket-009688?logo=fastapi)](https://fastapi.tiangolo.com/)
-[![Pydantic v2](https://img.shields.io/badge/pydantic-v2-red)](https://docs.pydantic.dev/latest/)
-[![Code style: black](https://img.shields.io/badge/code%20style-black-000000)](https://github.com/psf/black)
+[**Download**](https://github.com/The-JDdev/ManusClaw/releases) · [**Web UI**](https://the-jddev.github.io/manusclaw-web/) · [**Report Bug**](https://github.com/The-JDdev/ManusClaw/issues)
 
 </div>
 
@@ -27,24 +27,29 @@ Multi-agent · PAORR loop · Universal LLM · WebSocket server · 3-tier permiss
 ## 📋 Table of Contents
 
 - [What is ManusClaw?](#-what-is-manusclaw)
+- [v3.2 — What's New](#-v32--whats-new)
 - [v3.1 — What's New](#-v31--whats-new)
 - [v3.0 — What's New](#-v30--whats-new)
 - [Task-Complete Execution Philosophy](#-task-complete-execution-philosophy)
 - [Architecture Overview](#-architecture-overview)
 - [Universal LLM Router](#-universal-llm-router)
+- [True Offline & Local LLM Mastery](#-true-offline--local-llm-mastery)
 - [Multi-Agent Pipeline](#-multi-agent-pipeline)
 - [Memory System](#-memory-system)
 - [Permission System](#-permission-system)
 - [SQLite Session Logging](#-sqlite-session-logging)
 - [WebSocket Server & Web UI](#-websocket-server--web-ui)
+- [PlatformControlTool — External Platform Access](#-platformcontroltool--external-platform-access)
 - [PAORR Loop & Tool Intelligence](#-paorr-loop--tool-intelligence)
+- [Deployment Quartet — 4 Modes](#-deployment-quartet--4-modes)
 - [Installation — Linux](#-installation--linux)
 - [Installation — macOS](#-installation--macos)
 - [Installation — Windows](#-installation--windows)
 - [Installation — Docker](#-installation--docker)
 - [Installation — Termux (Android)](#-installation--termux-android)
 - [Installation — pip](#-installation--pip)
-- [Building Standalone Executables](#-building-standalone-executables)
+- [Desktop Software (GUI)](#-desktop-software-gui)
+- [Global Command — Wake ManusClaw Anywhere](#-global-command--wake-manusclaw-anywhere)
 - [Configuration](#-configuration)
 - [Usage](#-usage)
 - [Project Structure](#-project-structure)
@@ -56,473 +61,473 @@ Multi-agent · PAORR loop · Universal LLM · WebSocket server · 3-tier permiss
 
 ## 🤖 What is ManusClaw?
 
-**ManusClaw** is a production-grade, open-source **autonomous AI operating system** built entirely in Python. It combines the best ideas from MetaGPT, AutoGPT, OpenCode, and Manus into a single unified framework that runs from your terminal — or your browser.
+ManusClaw is a **fully autonomous, uncensored AI operating system** — not a chatbot wrapper. It thinks in loops, plans multi-step strategies, executes code, browses the web, controls external platforms, remembers across sessions, and manages complex tasks end-to-end without hand-holding.
 
-> **Identity:** Every ManusClaw agent runs with a hardcoded identity: *"You are ManusClaw, an autonomous AI engine created by The-JDdev (SHS Shobuj)."* The agent does not identify as any base LLM provider.
+It runs **completely locally** with no external API key required (via Ollama or GGUF), or it can power up with any commercial LLM (OpenAI, Anthropic, Google, Groq, etc.). It is **100% open source**, self-hosted, and has zero censorship enforced at the framework level.
 
-ManusClaw is designed for developers, researchers, and power users who want:
-- A **fully self-hosted** alternative to commercial agent products
-- **Zero-vendor-lock-in** — swap LLMs with a single config change
-- **Full system access** — no artificial restrictions on what the agent can do
-- **Complete transparency** — every decision, tool call, and retry logged in colour
+**Core capabilities:**
+
+| Capability | Description |
+|---|---|
+| 🔁 PAORR Loop | Plan → Act → Observe → Reflect → Repeat — persistent autonomous execution |
+| 🧠 Two-tier memory | Short-term context + Long-term SQLite/vector RAG |
+| 🌐 Universal LLM | Any provider, any local model, zero lock-in |
+| 📴 Full offline | Run GGUF models with zero internet, zero API key |
+| 👥 Multi-agent | PM → Architect → Engineer → QA pipeline |
+| 🔒 3-tier permissions | Allow / Ask / Deny — you control what it can touch |
+| 🛡️ Audit log | Every action, every tool call, fully logged to SQLite |
+| 🌍 PlatformControl | Autonomously manage GitHub, Vercel, WordPress, AWS, and more |
+| 🖥️ Desktop GUI | Native Flet app for Windows, Linux, macOS |
+| 📱 Mobile-first | Native Termux support, no Docker needed on Android |
+
+---
+
+## 🚀 v3.2 — What's New
+
+- **Deployment Quartet** — 4 distinct execution modes: CLI, Docker, Termux mobile, Desktop GUI
+- **Desktop software** — `build_desktop.sh` compiles a native GUI app for Windows (`.exe`), Linux, macOS via PyInstaller + Flet
+- **PlatformControlTool** — autonomous external platform manager (GitHub, Vercel, WordPress, HuggingFace, Netlify, Discord, Telegram, any REST API)
+- **Offline LLM Router** — direct GGUF support (llama-cpp-python), Ollama native, LMStudio, text-gen-webui, HuggingFace Inference API
+- **Global command injection** — `manusclaw_inject.sh` makes `Manusclaw` (any case) work from any terminal, forever
+- **pip packaging** — proper `pyproject.toml` with `[project.scripts]` entry points, optional extras
 
 ---
 
 ## 🚀 v3.1 — What's New
 
-| System | v3.0 | v3.1 |
-|---|---|---|
-| **Tool execution** | Default 2min, max 10min, 512 KB output cap | **No default, no max — runs until task done. Full output always returned.** |
-| **Timeout model** | Fixed DEFAULT + MAX caps | **Dynamic: pass `timeout=N` only when you need a deadline. Omit = run forever.** |
-| **Output cap** | 512 KB (truncated) | **No cap — complete output always returned to the agent** |
+- **Task-complete execution** — removed all timeout caps. Tools run until the job is done, period.
+- **Unlimited output** — no truncation on bash or Python tool output
+- **Cross-platform shell** — `bash.py` auto-detects OS: `bash` on Linux/Mac, `PowerShell` on Windows, Termux-aware on Android
 
 ---
 
 ## 🚀 v3.0 — What's New
 
-| System | v2.x | v3.0 |
-|---|---|---|
-| **LLM routing** | Provider-specific (OpenAI, Anthropic) | Universal dual-mode: official SDKs + any OpenAI-compatible API |
-| **Agent architecture** | Single Manus agent | Multi-role pipeline: PM → Architect → Engineer → QA |
-| **Memory** | Short-term context buffer | Two-tier: ShortTermMemory + RAG LongTermMemory (SQLite FTS5) |
-| **Audit log** | None | Full SQLite session/message/tool-call DB |
-| **Permissions** | Hard-deny only | 3-tier: Allow / Ask / Deny + Build Mode / Plan Mode |
-| **Web interface** | None | FastAPI WebSocket server + manusclaw-web HTML/JS/Tailwind UI |
-| **Mobile support** | None | No-Docker fallback, full CORS, Termux-compatible |
-| **Tool limits** | 64 KB / 30s | Unlimited output / task-complete duration |
+- **Dual-mode LLM router** — universal (any provider) + intelligent selection
+- **Multi-agent roles** — PM, Architect, Engineer, QA operating in pipeline
+- **Short-term + Long-term memory** — full session context + persistent RAG
+- **3-tier permission system** — Allow / Ask / Deny per tool category
+- **SQLite audit trail** — every session, every call, fully logged
+- **FastAPI WebSocket server** — real-time streaming to web clients
 
 ---
 
-## ⏱️ Task-Complete Execution Philosophy
+## ⚙️ Task-Complete Execution Philosophy
 
-> *"Kaam khatm hone tak rukna nahi — chahe 2 minute lage, 20 minute lage, ya 3 ghante."*
-> *(Don't stop until the work is done — whether it takes 2 minutes, 20, or 3 hours.)*
+ManusClaw operates on one rule: **finish the task**.
 
-ManusClaw tools have **no hardcoded timeout and no output size limit**. The agent decides when it is done — not a clock, not a byte counter.
-
-### How timeout works
-
-| How you call it | What happens |
-|---|---|
-| `timeout` omitted / `None` | Runs until natural completion. The framework never kills it. |
-| `timeout=120` | Killed after exactly 120 seconds if still running. |
-| `timeout=7200` | Killed after exactly 2 hours if still running. |
-
-```python
-# Runs until the compile finishes — could be 30s or 30 minutes
-bash.execute("make -j$(nproc)")
-
-# Runs until the training loop finishes — could be hours
-python_execute.execute(open("train.py").read())
-
-# Only use timeout= when YOU need an explicit hard deadline
-bash.execute("curl https://api.example.com/ping", timeout=10)
-```
-
-### Output
-
-Full stdout + stderr is always returned to the agent — no byte truncation, ever. The agent needs complete output to reason, debug, and iterate correctly. Cutting the output is a reasoning bug.
+- `bash` tool: no timeout — scripts run for seconds or hours, as needed
+- `python_execute` tool: no timeout, no output cap — full stdout/stderr preserved
+- The agent loops (PAORR) until it reaches a natural task boundary or the user explicitly stops it
+- No artificial caps on context, output size, or recursion depth
 
 ---
 
-## 🏗 Architecture Overview
+## 🏛️ Architecture Overview
 
 ```
-┌────────────────────────────────────────────────────────────────┐
-│                    ManusClaw v3.1 Stack                        │
-├────────────────────────────────────────────────────────────────┤
-│  Entry Points                                                  │
-│  ┌─────────┐  ┌──────────────┐  ┌────────────┐  ┌──────────┐ │
-│  │ main.py │  │ run_flow.py  │  │run_multi   │  │run_server│ │
-│  │  (CLI)  │  │ (PlanFlow)   │  │_agent.py   │  │.py (WS)  │ │
-│  └────┬────┘  └──────┬───────┘  └─────┬──────┘  └────┬─────┘ │
-├───────┼───────────────┼───────────────┼───────────────┼────────┤
-│  Orchestration Layer                                           │
-│  ┌────▼───────────────▼───────────────▼────────────────────┐  │
-│  │              MultiAgentOrchestrator (DAG)                │  │
-│  │  ProductManager → Architect → Engineer → QA              │  │
-│  │  Async message bus · Topological sort · Re-planning      │  │
-│  └────────────────────────┬─────────────────────────────────┘  │
-│                           │                                    │
-│  Agent Layer              │                                    │
-│  ┌────────────────────────▼─────────────────────────────────┐  │
-│  │  BaseAgent (identity, memory, permissions, DB logging)   │  │
-│  │    └── ReActAgent (PAORR loop)                           │  │
-│  │           └── ToolCallAgent (function calling, retry)    │  │
-│  │                  └── Manus (full tool suite)             │  │
-│  └────────────────────────┬─────────────────────────────────┘  │
-│                           │                                    │
-│  Support Systems          │                                    │
-│  ┌─────────┐ ┌──────────┐ │ ┌───────────┐ ┌───────────────┐  │
-│  │MemoryDB │ │Permission│ │ │ToolSelect │ │  LLM Router   │  │
-│  │STM+LTM  │ │Gate      │ │ │ Scoring   │ │ Dual-Mode     │  │
-│  └─────────┘ └──────────┘ │ └───────────┘ └───────────────┘  │
-│                           │                                    │
-│  Tool Layer               │                                    │
-│  ┌────────────────────────▼─────────────────────────────────┐  │
-│  │  python_execute · bash · str_replace_editor · browser    │  │
-│  │  web_search · crawl · data_viz · ask_human · terminate   │  │
-│  └──────────────────────────────────────────────────────────┘  │
-└────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│                     ManusClaw Ecosystem                     │
+├──────────────┬──────────────┬──────────────┬────────────────┤
+│  Mode A: CLI │ Mode B:Docker│ Mode C:Termux│ Mode D: Desktop│
+└──────┬───────┴──────┬───────┴──────┬───────┴───────┬────────┘
+       │              │              │               │
+       └──────────────┴──────────────┴───────────────┘
+                              │
+                    ┌─────────▼──────────┐
+                    │   PAORR Agent Loop  │
+                    │ Plan→Act→Obs→Reflect│
+                    └─────────┬──────────┘
+                              │
+         ┌────────────────────┼────────────────────┐
+         │                    │                    │
+┌────────▼───────┐  ┌─────────▼──────┐  ┌─────────▼──────┐
+│  Universal LLM │  │  Tool Registry  │  │  Memory System  │
+│  Router        │  │                 │  │                 │
+│  ─────────     │  │  bash           │  │  ShortTermMemory│
+│  OpenAI        │  │  python_execute │  │  LongTermMemory │
+│  Anthropic     │  │  browser        │  │  SQLite log     │
+│  Google        │  │  file_*         │  └─────────────────┘
+│  Ollama        │  │  web_search     │
+│  LMStudio      │  │  platform_ctrl  │
+│  GGUF (local)  │  │  str_replace    │
+│  HuggingFace   │  │  terminate      │
+└────────────────┘  └─────────────────┘
+         │
+┌────────▼───────────────────────────────┐
+│          Multi-Agent Pipeline          │
+│  PM → Architect → Engineer → QA        │
+└────────────────────────────────────────┘
 ```
 
 ---
 
-## 🌍 Universal LLM Router
+## 🌐 Universal LLM Router
 
-ManusClaw v3 supports **two seamless modes** of LLM connection:
-
-### Mode 1 — Official Providers (The Standard Way)
-
-Set `provider` explicitly to route through official SDKs:
+One config key — infinite providers. No code changes needed.
 
 ```toml
 [llm]
-provider    = "openai"
-model       = "gpt-4o"
-api_key     = ""   # or OPENAI_API_KEY env var
-max_tokens  = 8192
-temperature = 0.0
+# ── Commercial APIs ──────────────────────────────────────────
+provider = "openai"
+model    = "gpt-4o"
+api_key  = "sk-..."
+
+# ── Anthropic ────────────────────────────────────────────────
+# provider = "anthropic"
+# model    = "claude-opus-4-5"
+# api_key  = "sk-ant-..."
+
+# ── Google ───────────────────────────────────────────────────
+# provider = "google"
+# model    = "gemini-2.0-flash"
+# api_key  = "AIza..."
+
+# ── Groq (fast inference) ────────────────────────────────────
+# base_url = "https://api.groq.com/openai/v1"
+# model    = "llama-3.3-70b-versatile"
+# api_key  = "gsk_..."
+
+# ── OpenRouter (100+ models) ─────────────────────────────────
+# base_url = "https://openrouter.ai/api/v1"
+# model    = "meta-llama/llama-3.1-70b-instruct"
+# api_key  = "sk-or-..."
+
+# ── Fully local — see next section ───────────────────────────
 ```
 
-| Provider | `provider` value | Notes |
-|---|---|---|
-| OpenAI | `"openai"` | GPT-4o, GPT-4 Turbo, o1, o3 |
-| Anthropic | `"anthropic"` | Claude 3.5 Sonnet, Claude 3 Opus |
-| Google | `"google"` | Gemini 1.5 Pro, Gemini Flash |
-| MockLLM | `"mock"` | Zero credentials — always works |
+---
 
-### Mode 2 — Universal / Agnostic (The Hacker Way)
+## 📴 True Offline & Local LLM Mastery
 
-Just set `base_url` + `api_key` + `model`. No `provider` needed. The system sends a standard OpenAI-compatible request automatically.
+ManusClaw supports **completely offline** operation — zero cloud, zero API key, zero internet.
+
+### Option 1 — Ollama (recommended for beginners)
+
+```bash
+# Install Ollama
+curl -fsSL https://ollama.ai/install.sh | sh    # Linux/Mac
+# Windows: https://ollama.ai/download
+
+# Pull a model (runs locally, once downloaded = fully offline)
+ollama pull llama3.2:3b       # 2GB — fast, good for most tasks
+ollama pull llama3.1:8b       # 5GB — better reasoning
+ollama pull codellama:13b     # 8GB — best for code tasks
+ollama pull mistral:7b        # 4GB — great all-rounder
+ollama pull phi3:mini         # 2GB — ultra fast, low RAM
+
+# Configure ManusClaw
+```
 
 ```toml
-# OpenRouter — access 100+ models with one API key
 [llm]
-base_url = "https://openrouter.ai/api/v1"
-api_key  = "sk-or-..."
-model    = "anthropic/claude-3-5-sonnet"
-
-# Ollama — fully local, zero cost
-[llm]
+provider = "openai_compat"
 base_url = "http://localhost:11434/v1"
 api_key  = "none"
 model    = "llama3.2:3b"
-
-# LM Studio — local GUI + API
-[llm]
-base_url = "http://localhost:1234/v1"
-api_key  = "lm-studio"
-model    = "mistral-7b-instruct"
-
-# Groq — ultra-fast inference
-[llm]
-base_url = "https://api.groq.com/openai/v1"
-api_key  = "gsk_..."
-model    = "llama-3.1-70b-versatile"
-
-# Any custom proxy / AgentRouter / vLLM
-[llm]
-base_url = "http://your-proxy:8080/v1"
-api_key  = "your-key"
-model    = "your-model-name"
 ```
 
-**How it works:** The router detects that `base_url` is set and `provider` is empty/unknown → sends a standard `POST /chat/completions` request with `Authorization: Bearer <api_key>`. No hardcoded provider checks. Works with anything OpenAI-compatible.
+### Option 2 — Direct GGUF (fully offline, no Ollama needed)
+
+Download any `.gguf` file from HuggingFace and plug it in directly:
+
+```bash
+# Example: download Mistral 7B Q4
+wget https://huggingface.co/TheBloke/Mistral-7B-Instruct-v0.2-GGUF/resolve/main/mistral-7b-instruct-v0.2.Q4_K_M.gguf
+
+# Install the GGUF runtime
+pip install llama-cpp-python
+
+# GPU acceleration (NVIDIA CUDA)
+CMAKE_ARGS="-DLLAMA_CUBLAS=on" pip install llama-cpp-python
+
+# Metal (Apple Silicon)
+CMAKE_ARGS="-DLLAMA_METAL=on" pip install llama-cpp-python
+```
+
+```toml
+[llm]
+provider   = "gguf"
+model_path = "/path/to/mistral-7b-instruct-v0.2.Q4_K_M.gguf"
+n_ctx      = 4096
+n_gpu_layers = 35   # set 0 for CPU-only
+```
+
+### Option 3 — LMStudio (GUI model manager)
+
+1. Download [LMStudio](https://lmstudio.ai/) — free, no account needed
+2. Search and download any model inside the app
+3. Start the local server (it's OpenAI-compatible)
+
+```toml
+[llm]
+provider = "openai_compat"
+base_url = "http://localhost:1234/v1"
+api_key  = "none"
+model    = "local-model"
+```
+
+### Option 4 — text-generation-webui
+
+```toml
+[llm]
+provider = "openai_compat"
+base_url = "http://localhost:5000/v1"
+api_key  = "none"
+model    = "your-loaded-model"
+```
+
+### Option 5 — HuggingFace Inference API
+
+```toml
+[llm]
+provider = "huggingface"
+model    = "HuggingFaceH4/zephyr-7b-beta"
+api_key  = "hf_your_token_here"
+```
+
+Or connect to a private HuggingFace Space / dedicated endpoint:
+
+```toml
+[llm]
+provider     = "huggingface"
+endpoint_url = "https://your-space.hf.space"
+api_key      = "hf_your_token_here"
+```
 
 ---
 
-## 🤖 Multi-Agent Pipeline
-
-ManusClaw v3 implements the **MetaGPT-inspired multi-role architecture**. Four specialist agents communicate via an async message bus and execute in DAG (topological) order.
-
-### The Four Roles
-
-| Role | Responsibility | Output |
-|---|---|---|
-| **ProductManager** | Receives user goal → writes PRD | Objective, scope, acceptance criteria, priorities |
-| **Architect** | Reads PRD → writes system design | File structure, component map, data flow, task DAG |
-| **Engineer** | Reads design → implements using Manus tools | Running code, files in workspace/, verified outputs |
-| **QA** | Reads implementation → validates against criteria | QA report, PASS/FAIL per criterion, verdict |
-
-### The OTAP Loop (per role)
-
-```
-Observe  — read messages from the async bus
-Think    — reason with specialist prompt + LLM
-Act      — call tools (Engineer/QA) or generate document (PM/Architect)
-Publish  — push output to the bus for downstream roles
-```
-
-### DAG execution with topological sort
-
-```python
-# Default dependency graph
-deps = {
-    "product_manager": [],
-    "architect":       ["product_manager"],
-    "engineer":        ["architect"],
-    "qa":              ["engineer"],
-}
-# Kahn's algorithm computes: PM → Architect → Engineer → QA
-# Custom pipelines: inject your own roles + deps
-```
-
-### Running the pipeline
+## 👥 Multi-Agent Pipeline
 
 ```bash
-# CLI
-python run_multi_agent.py "Build a REST API for a todo list with SQLite backend"
-
-# Plan Mode (QA before every tool call)
-python run_multi_agent.py --mode plan "Design a web scraper"
-
-# Via REST API
-curl -X POST http://localhost:8765/multi-agent \
-  -H "Content-Type: application/json" \
-  -d '{"goal": "Build a calculator app in Python", "mode": "build"}'
+python run_multi_agent.py "Build a full REST API with auth, rate limiting, and tests"
 ```
+
+Pipeline execution:
+
+```
+PM Agent          → breaks task into milestones, assigns subtasks
+Architect Agent   → designs system, picks stack, writes ADR
+Engineer Agent    → implements code, runs tests, fixes bugs
+QA Agent          → validates output, writes test report
+```
+
+Each agent has its own system prompt, memory scope, and tool access level. Results feed forward through the pipeline.
 
 ---
 
 ## 🧠 Memory System
 
-### Tier 1 — ShortTermMemory (context buffer)
+**Short-Term Memory (STM)**
+- Full conversation history within a session
+- Tool call results, observations, intermediate thoughts
+- Stays in RAM, cleared on exit
 
-```python
-class ShortTermMemory(Memory):
-    max_messages: int = 100       # rolling window
-    # System messages pinned (never trimmed)
-    # Oldest non-system messages trimmed first
-    # Context refresh injected every 5 steps
-    # snapshot() / restore() for Plan Mode dry-runs
-```
+**Long-Term Memory (LTM)**
+- Persisted to SQLite
+- Key facts, completed task summaries, user preferences
+- Retrieved via semantic search at the start of each relevant task
 
-### Tier 2 — LongTermMemory (persistent RAG)
-
-```python
-class LongTermMemory:
-    # SQLite backend at workspace/.memory/long_term.db
-    # FTS5 full-text search (primary)
-    # LIKE fallback if FTS fails
-    # Never crashes if vector library is missing
-```
-
-```python
-# Store knowledge
-await ltm.store("Python asyncio event loop runs one coroutine at a time", meta={"source": "docs"})
-
-# Retrieve relevant memory
-results = await ltm.search("how does asyncio work", k=5)
-# → [{id, content, meta, score, source}, ...]
-```
-
-### Context refresh injection
-
-Every 5 steps, the agent's TaskHistory (all prior observations and reflections) is compressed into a summary and injected back into the conversation, so the LLM never loses track across long runs.
+**Session Audit Log**
+- Every session → its own table in `data/sessions.db`
+- Tool calls, inputs, outputs, timestamps, token counts all logged
+- Query with any SQLite client
 
 ---
 
-## 🛡️ Permission System
+## 🔒 Permission System
 
-Three-tier permission model with two agent modes:
+Three permission tiers — configured per tool category:
 
-### Tiers
-
-| Tier | Examples | Behaviour |
-|---|---|---|
-| **ALLOW** | `web_search`, `crawl`, `ask_human`, `terminate` | Automatic — never blocked |
-| **ASK** | `bash`, `python_execute`, `str_replace_editor`, `browser_use` | Auto-approved in Build Mode; pauses for confirmation in Plan Mode |
-| **DENY** | `rm -rf /`, fork bombs, `dd` to block devices, `mkfs` | Unconditionally blocked regardless of mode |
-
-### The ONLY blocked operations
-
-```
-rm -rf /          →  wipes root filesystem
-rm -rf /*         →  wipes root filesystem  
-:(){ :|:& };:     →  fork bomb
-dd if=/dev/zero   →  overwrites block devices
-mkfs.*            →  formats disks
-kill -9 -1        →  kills all processes
-```
-
-**Everything else is permitted.** `sudo`, `apt`, `pip`, `git`, `curl`, `systemctl`, `crontab`, `/etc` edits, complex scripts, network operations, global package installs — all fully unblocked.
-
-### Agent Modes
+| Tier | Behaviour |
+|---|---|
+| `allow` | Tool executes silently, no prompt |
+| `ask` | Agent pauses, requests user confirmation |
+| `deny` | Tool is blocked entirely |
 
 ```toml
-[runflow]
-mode = "build"   # "build" = full auto | "plan" = asks before ASK actions
+[permissions]
+bash           = "allow"   # run shell commands
+python_execute = "allow"   # run Python code
+file_write     = "ask"     # pause before writing files
+browser        = "allow"   # web browsing
+network        = "allow"   # HTTP requests
+platform_ctrl  = "ask"     # external platform actions
 ```
 
-```bash
-# Plan Mode — agent shows pending actions and asks before executing
-python main.py --mode plan "Refactor the entire codebase"
+Two agent modes:
 
-# Build Mode — fully autonomous (default)
-python main.py "Deploy the application"
-```
-
-**Plan Mode prompt example:**
-
-```
-⏸  [PLAN MODE] Pending action requires approval:
-   Tool: bash
-   Preview: pip install -r requirements.txt
-   Approve? [y/N]: 
-```
+- **Build mode** — maximum autonomy, minimal interruptions
+- **Plan mode** — generates plans and strategy, no execution
 
 ---
 
-## 📊 SQLite Session Logging
+## 🗄️ SQLite Session Logging
 
-Every agent run is fully audited in `workspace/.sessions/manusclaw.db`:
-
-```sql
--- Three tables
-sessions    -- id, goal, agent_name, mode, started_at, ended_at, state, step_count
-messages    -- session_id, role, content, ts
-tool_calls  -- session_id, step, tool_name, args, output, error, success, attempt, duration_ms, ts
-```
-
-**Query via REST API:**
+Every run is fully logged to `data/sessions.db`. Query at any time:
 
 ```bash
-# List all sessions
-curl http://localhost:8765/sessions
-
-# Get all tool calls for a session
-curl http://localhost:8765/sessions/abc123def456/tool_calls
-
-# Get all messages for a session
-curl http://localhost:8765/sessions/abc123def456/messages
+sqlite3 data/sessions.db "SELECT * FROM sessions ORDER BY created_at DESC LIMIT 5;"
+sqlite3 data/sessions.db "SELECT tool, input, output FROM tool_calls WHERE session_id='abc123';"
 ```
 
-**Recover any run:** Since every tool call is logged with input/output, you can replay or inspect any execution — even if it crashed mid-way.
+Export a session:
+
+```bash
+sqlite3 -csv data/sessions.db "SELECT * FROM tool_calls WHERE session_id='abc123';" > session.csv
+```
 
 ---
 
 ## 🌐 WebSocket Server & Web UI
 
-### Server startup
-
 ```bash
-pip install uvicorn[standard] fastapi
+# Start server
 python run_server.py --host 0.0.0.0 --port 8765
+
+# Connect via web UI
+open https://the-jddev.github.io/manusclaw-web/
+
+# Or connect programmatically
+wscat -c ws://localhost:8765
 ```
 
-```
-███╗   ███╗ █████╗ ███╗   ██╗██╗   ██╗███████╗
-████╗ ████║██╔══██╗████╗  ██║██║   ██║██╔════╝
-██╔████╔██║███████║██╔██╗ ██║██║   ██║███████╗
-██║╚██╔╝██║██╔══██║██║╚██╗██║██║   ██║╚════██║
-██║ ╚═╝ ██║██║  ██║██║ ╚████║╚██████╔╝███████║
-╚═╝     ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝ ╚══════╝
-ManusClaw v3.1 — Agent Server  by The-JDdev (SHS Shobuj)
+Send a task:
 
-Listening: http://0.0.0.0:8765
-REST:      http://0.0.0.0:8765/run
-WebSocket: ws://0.0.0.0:8765/ws/<session_id>
-Sessions:  http://0.0.0.0:8765/sessions
-Health:    http://0.0.0.0:8765/healthz
+```json
+{"type": "task", "content": "Write a Python script that monitors CPU usage"}
 ```
 
-### REST API
+Receive streaming token output in real-time.
 
-| Method | Endpoint | Description |
-|---|---|---|
-| `GET` | `/healthz` | Health check |
-| `POST` | `/run` | Fire-and-forget agent run (returns session_id immediately) |
-| `POST` | `/run/sync` | Synchronous run (waits for completion) |
-| `POST` | `/multi-agent` | Run PM → Architect → Engineer → QA pipeline |
-| `GET` | `/sessions` | List all sessions |
-| `GET` | `/sessions/{id}/messages` | Get all messages for a session |
-| `GET` | `/sessions/{id}/tool_calls` | Get all tool calls for a session |
-| `GET` | `/tools` | List all available tools |
+---
 
-### WebSocket protocol
+## 🌍 PlatformControlTool — External Platform Access
 
-```javascript
-// Connect
-const ws = new WebSocket("ws://localhost:8765/ws/my-session-123");
+The agent can now **autonomously control any external platform** using your credentials — just like a human admin.
 
-// Send a task
-ws.send(JSON.stringify({ prompt: "Search for Python 3.13 release notes", mode: "build" }));
+### GitHub
 
-// Receive streaming events
-// { type: "agent_start",  prompt: "..." }
-// { type: "step_start",  step: 1, ts: ... }
-// { type: "step_output", step: 1, content: "..." }
-// { type: "agent_done",  output: "...", state: "FINISHED" }
-// { type: "agent_error", error: "..." }
+```python
+# The agent will call this internally when you give it a task like:
+# "Create a new repo, push these files, and open a PR"
+platform_control(
+    platform="github",
+    credentials={"token": "ghp_your_token"},
+    method="POST",
+    path="/user/repos",
+    body={"name": "my-new-project", "private": False}
+)
 ```
 
-### manusclaw-web UI
+### Vercel
 
-The companion web UI ([github.com/The-JDdev/manusclaw-web](https://github.com/The-JDdev/manusclaw-web)) connects to this server via WebSocket and provides:
-- **Chat interface** — send prompts, see streaming agent output
-- **File tree** — browse workspace/ in real time
-- **Terminal view** — see tool calls and tool outputs
-- **Session history** — browse all prior runs
-- **Mode switcher** — toggle Build/Plan mode
-
-```bash
-# Self-hosted (open index.html in a browser — no build step)
-git clone https://github.com/The-JDdev/manusclaw-web
-open manusclaw-web/index.html
-
-# Point it at your backend (local or remote)
-# Set SERVER_URL in the UI to ws://your-server:8765
+```python
+platform_control(
+    platform="vercel",
+    credentials={"token": "your_vercel_token"},
+    method="GET",
+    path="/v9/projects"
+)
 ```
 
-**Full CORS** is enabled on the server — connect from GitHub Pages, Vercel, Termux `localhost`, or any origin without issues.
+### WordPress
+
+```python
+platform_control(
+    platform="wordpress",
+    credentials={
+        "site_url": "https://yoursite.com",
+        "username": "admin",
+        "app_password": "xxxx xxxx xxxx"
+    },
+    method="POST",
+    path="/posts",
+    body={"title": "Auto-published post", "status": "publish", "content": "..."}
+)
+```
+
+### Any REST API (generic)
+
+```python
+platform_control(
+    platform="generic",
+    credentials={
+        "base_url": "https://api.yourplatform.com",
+        "token": "your_api_token",
+        "auth_scheme": "Bearer"
+    },
+    method="DELETE",
+    path="/v1/resources/123"
+)
+```
+
+**Supported platforms:** GitHub · Vercel · WordPress · HuggingFace · Netlify · Discord · Telegram · Any REST API
 
 ---
 
 ## 🔄 PAORR Loop & Tool Intelligence
 
-### The PAORR cycle (per step)
+ManusClaw uses an adaptive tool-scoring PAORR loop:
 
 ```
-PLAN    → LLM writes numbered plan with success criteria (first step only)
-ACT     → ToolSelector scores all tools → ranked list injected into prompt
-          → LLM picks tool → executed with retry (max 4 attempts, exp. backoff)
-OBSERVE → ToolResult captured → Observation logged to TaskHistory + SQLite
-REFLECT → LLM judges: did this solve the sub-goal? (JSON: solved/reason/next)
-RETRY   → If not solved: error injected, re-score with failure penalty, re-ask
+Plan      → decompose task, identify tools needed
+Act       → execute best-scored tool for current step
+Observe   → parse output, update memory
+Reflect   → update tool scores, check if done
+Repeat    → continue until task boundary reached
 ```
 
-### ToolSelector scoring
+Tool scoring adapts dynamically — failed tools get penalised, recently-used tools get a mild penalty to encourage strategy variation.
 
-Before every tool call, all tools are scored 0–100% against the current sub-goal:
+---
 
-```
-┌─ TOOL INTELLIGENCE LAYER ─────────────────────────────────────┐
-│ Goal analysis: Write and run a Python script to compute...    │
-│                                                               │
-│  [████████████████████]  70%  python_execute                  │
-│  [██████████░░░░░░░░░░]  50%  str_replace_editor              │
-│  [██████░░░░░░░░░░░░░░]  30%  bash                            │
-│                                                               │
-│ ▶ Recommended: python_execute                                 │
-│   Reason: strongly recommended — signals: python(+0.45)...   │
-└───────────────────────────────────────────────────────────────┘
+## 🚀 Deployment Quartet — 4 Modes
+
+### Mode A — Standalone CLI
+Pure terminal execution, no GUI, no server. Maximum speed.
+
+```bash
+manusclaw "Write a web scraper for Hacker News"
 ```
 
-Scoring adapts across the run: tools that fail are penalised, recently-used tools get a mild penalty to encourage trying alternatives.
+### Mode B — Dockerized Sandbox
+Fully isolated container. Ideal for sensitive tasks, CI, or shared servers.
+
+```bash
+docker compose run --rm manusclaw "Your task"
+docker compose --profile server up -d        # WebSocket server
+docker compose --profile multi run --rm multi-agent "Build an API"
+```
+
+### Mode C — Termux Mobile
+Runs natively on Android. No Docker, no PC. Just your phone.
+
+```bash
+bash setup-termux.sh
+manusclaw "Your task from your phone"
+```
+
+### Mode D — Desktop GUI
+A native graphical app compiled for your OS. Double-click to launch.
+
+```bash
+bash build_desktop.sh
+./release/manusclaw-v3.2.0-linux-x86_64
+```
 
 ---
 
 ## 🐧 Installation — Linux
 
-**One-liner (Ubuntu, Debian, Fedora, Arch, any distro):**
+**One-liner:**
 
 ```bash
 git clone https://github.com/The-JDdev/ManusClaw.git
 cd ManusClaw && bash install.sh
 ```
 
-Or manually:
+**Manual:**
 
 ```bash
 git clone https://github.com/The-JDdev/ManusClaw.git
@@ -532,20 +537,20 @@ pip install -r requirements.txt
 python main.py "Print Hello from ManusClaw!"
 ```
 
-After install the `manusclaw` command is available globally:
+After install, `manusclaw` is available globally:
 
 ```bash
-manusclaw "Write a Python web scraper for Hacker News"
+manusclaw "Write a Python script that monitors disk usage"
 ```
 
 ---
 
 ## 🍎 Installation — macOS
 
-Works on **Intel** and **Apple Silicon (M1/M2/M3)**:
+Works on Intel and Apple Silicon (M1/M2/M3/M4):
 
 ```bash
-# Install Homebrew if not present
+# Install Homebrew (if not present)
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 brew install python3 git
 
@@ -553,37 +558,33 @@ git clone https://github.com/The-JDdev/ManusClaw.git
 cd ManusClaw && bash install.sh
 ```
 
-Or manually:
+GPU acceleration for GGUF models (Apple Silicon):
 
 ```bash
-git clone https://github.com/The-JDdev/ManusClaw.git
-cd ManusClaw
-python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-python main.py "Print Hello from ManusClaw!"
+CMAKE_ARGS="-DLLAMA_METAL=on" pip install llama-cpp-python
 ```
 
 ---
 
 ## 🪟 Installation — Windows
 
-**Option A — One-click PowerShell installer:**
+**Option A — PowerShell installer (recommended):**
 
 ```powershell
-# Run in PowerShell (as Administrator or normal user)
+# Run PowerShell as normal user (no Administrator needed)
 Set-ExecutionPolicy Bypass -Scope Process -Force
 git clone https://github.com/The-JDdev/ManusClaw.git
 cd ManusClaw
 powershell -File install.ps1
 ```
 
-After install, restart terminal and run:
+Restart terminal, then:
 
 ```cmd
 manusclaw "Your task here"
 ```
 
-**Option B — Manual (PowerShell):**
+**Option B — Manual:**
 
 ```powershell
 git clone https://github.com/The-JDdev/ManusClaw.git
@@ -591,61 +592,51 @@ cd ManusClaw
 python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt
-python main.py "Print Hello from ManusClaw!"
+python main.py "Your task here"
 ```
 
-> **Note:** On Windows, the `bash` tool uses **PowerShell** automatically. All other tools work identically across platforms.
+> On Windows, the `bash` tool inside ManusClaw automatically uses **PowerShell** — no WSL required.
 
 ---
 
 ## 🐳 Installation — Docker
 
-No Python setup required — just Docker:
+Zero Python setup required:
 
 ```bash
-# Clone and build
 git clone https://github.com/The-JDdev/ManusClaw.git
 cd ManusClaw
 
-# Copy and edit config
-cp config.toml.example config.toml   # or create config.toml manually
-nano config.toml                     # add your API key
+# Edit your config
+cp config.toml.example config.toml
+nano config.toml
 
-# Run a one-shot task
+# One-shot CLI task
 docker compose run --rm manusclaw "Write a Python web scraper"
 
-# Start the WebSocket server (background)
+# Background WebSocket server
 docker compose --profile server up -d
 
-# Run the multi-agent pipeline
-docker compose --profile multi run --rm multi-agent "Build a REST API"
+# Multi-agent pipeline
+docker compose --profile multi run --rm multi-agent "Build a REST API with auth"
 ```
 
-**Without docker-compose:**
+**Without compose:**
 
 ```bash
 docker build -t manusclaw .
 
-# CLI
 docker run -it --rm \
   -v $(pwd)/config.toml:/manusclaw/config.toml:ro \
   -v manusclaw-workspace:/manusclaw/workspace \
   manusclaw "Your task here"
-
-# Server
-docker run -d \
-  -p 8765:8765 \
-  -v $(pwd)/config.toml:/manusclaw/config.toml:ro \
-  -v manusclaw-workspace:/manusclaw/workspace \
-  --name manusclaw-server \
-  manusclaw python run_server.py --host 0.0.0.0 --port 8765
 ```
 
 ---
 
 ## 📱 Installation — Termux (Android)
 
-Run ManusClaw on your Android phone — no root, no PC needed:
+No PC required. No Docker. Just your phone.
 
 ```bash
 # Inside Termux
@@ -653,18 +644,18 @@ git clone https://github.com/The-JDdev/ManusClaw.git
 cd ManusClaw && bash setup-termux.sh
 ```
 
-Then in a new Termux session:
+New session:
 
 ```bash
-manusclaw "Your task here"
+manusclaw "Build a Python REST API"
 ```
 
 **Connect to Ollama on your PC (same WiFi):**
 
 ```toml
-# config.toml
 [llm]
-base_url = "http://192.168.1.X:11434/v1"
+provider = "openai_compat"
+base_url = "http://192.168.1.X:11434/v1"   # your PC's IP
 api_key  = "none"
 model    = "llama3.2:3b"
 ```
@@ -673,196 +664,229 @@ model    = "llama3.2:3b"
 
 ## 📦 Installation — pip
 
-Install directly from GitHub as a Python package:
-
 ```bash
+# Core only
 pip install git+https://github.com/The-JDdev/ManusClaw.git
+
+# With all extras
+pip install "git+https://github.com/The-JDdev/ManusClaw.git#egg=manusclaw[all]"
+
+# Desktop GUI only
+pip install "git+https://github.com/The-JDdev/ManusClaw.git#egg=manusclaw[desktop]"
+
+# Offline GGUF support
+pip install "git+https://github.com/The-JDdev/ManusClaw.git#egg=manusclaw[offline]"
 ```
 
-Or with optional extras:
+After pip install, these commands are available globally:
 
 ```bash
-pip install "git+https://github.com/The-JDdev/ManusClaw.git#egg=manusclaw[all]"
+manusclaw           # CLI agent
+Manusclaw           # same (case alias)
+manusclaw-server    # WebSocket server
+manusclaw-multi     # multi-agent pipeline
+manusclaw-desktop   # desktop GUI
 ```
-
-This installs the `manusclaw`, `manusclaw-server`, and `manusclaw-multi` CLI commands globally.
 
 ---
 
-## 🏗️ Building Standalone Executables
+## 🖥️ Desktop Software (GUI)
 
-Build a single-file executable for your platform (no Python required to run):
+ManusClaw compiles into a **standalone native desktop application** — no Python installation required on the target machine.
+
+### Build on your platform
 
 ```bash
-# Install build deps
-pip install pyinstaller
+# Install build dependencies
+pip install pyinstaller flet
 
-# Build for current platform
-python build_release.py
+# Build for current OS (auto-detected)
+bash build_desktop.sh
+
+# Options:
+bash build_desktop.sh --flet     # GUI app (default)
+bash build_desktop.sh --cli      # CLI-only executable
+bash build_desktop.sh --onedir   # folder output (faster launch)
 ```
 
-Output goes to `release/`:
+Output:
 
 ```
 release/
-├── manusclaw-v3.1.0-linux-x86_64        ← Linux binary
-├── manusclaw-v3.1.0-darwin-arm64        ← macOS Apple Silicon binary
-├── manusclaw-v3.1.0-windows-amd64.exe   ← Windows binary
-└── manusclaw-v3.1.0-*.zip               ← Zip archives
+├── manusclaw-v3.2.0-linux-x86_64          ← Linux binary
+├── manusclaw-v3.2.0-linux-x86_64.tar.gz
+├── manusclaw-v3.2.0-macos-arm64           ← macOS binary
+├── manusclaw-v3.2.0-macos-arm64.tar.gz
+└── manusclaw-v3.2.0-windows-amd64.exe     ← Windows binary
 ```
 
-**To build for all platforms** — run `python build_release.py` on each platform separately, then upload the binaries to your [GitHub Releases](https://github.com/The-JDdev/ManusClaw/releases/new) page manually.
+### Platform notes
+
+**Linux:**
+```bash
+chmod +x release/manusclaw-*-linux-*
+./release/manusclaw-*-linux-*
+```
+
+**macOS:**
+```bash
+chmod +x release/manusclaw-*-macos-*
+./release/manusclaw-*-macos-*
+# If Gatekeeper blocks: xattr -cr ./release/manusclaw-*-macos-*
+```
+
+**Windows:**
+Double-click the `.exe` or run from PowerShell.
+If SmartScreen warns: click **More info → Run anyway**.
+
+> Note: PyInstaller builds for the *current* platform only. To build for all 3 platforms, run the script on each OS separately.
+
+---
+
+## 🌐 Global Command — Wake ManusClaw Anywhere
+
+After running `install.sh` or `manusclaw_inject.sh`, the word `Manusclaw` (any case) wakes the system from **any terminal window** — no need to navigate to the project folder.
+
+```bash
+# Install the global command
+bash manusclaw_inject.sh
+
+# Reload your shell
+source ~/.bashrc    # or ~/.zshrc
+
+# Now from anywhere:
+manusclaw "Summarise all my Python files in ~/projects"
+Manusclaw "Deploy my app to Vercel"
+MANUSCLAW "Check my GitHub notifications"
+```
+
+**If you exit the terminal and come back:**
+
+```bash
+# Same — just type it:
+Manusclaw "Continue the task from yesterday"
+```
+
+**Remove the global command:**
+
+```bash
+bash manusclaw_inject.sh --remove
+```
+
+**Windows (PowerShell):**
+
+The installer creates `manusclaw.bat` in the project folder and offers to add it to system PATH. After that:
+
+```cmd
+manusclaw "Your task here"
+```
+
+**Termux:**
+
+```bash
+bash manusclaw_inject.sh
+# Installs to $PREFIX/bin — available immediately in any Termux session
+```
 
 ---
 
 ## ⚙️ Configuration
 
+Create `config.toml` in the project root:
+
 ```toml
-# config.toml
-
-# ─── LLM ────────────────────────────────────────────────────────
+# ─── LLM ────────────────────────────────────────────────────────────────────
 [llm]
-# Mode 1: Official provider
-provider    = "openai"
-model       = "gpt-4o"
-max_tokens  = 8192
-temperature = 0.0
-# api_key   = ""   # or set OPENAI_API_KEY env var
+provider = "mock"        # mock | openai | anthropic | google | gguf | ollama
+                         # openai_compat | huggingface
+model    = "gpt-4o"
+# api_key = ""
 
-# Mode 2: Universal (comment out provider, set base_url)
-# base_url  = "https://openrouter.ai/api/v1"
-# api_key   = "sk-or-..."
-# model     = "anthropic/claude-3-5-sonnet"
+# Offline GGUF example:
+# provider   = "gguf"
+# model_path = "/models/llama-3.1-8b.Q4_K_M.gguf"
+# n_ctx      = 8192
+# n_gpu_layers = 35
 
-# ─── Execution ──────────────────────────────────────────────────
-workspace_dir = "workspace"
-max_steps     = 50             # per-agent step cap
-
-# ─── Agent Mode ─────────────────────────────────────────────────
-[runflow]
-mode                 = "build"   # "build" or "plan"
-enable_data_analysis = false
-timeout              = 7200      # 2-hour global cap
-
-# ─── Browser ────────────────────────────────────────────────────
-[browser]
-headless           = true
-disable_security   = false
-max_content_length = 20000
-
-# ─── Search ─────────────────────────────────────────────────────
-[search]
-engines     = ["duckduckgo", "bing"]
-max_results = 10
-
-# ─── Sandbox (optional Docker isolation) ───────────────────────
-[sandbox]
-enabled      = false
-docker_image = "python:3.11-slim"
-memory_limit = "512m"
-timeout      = 120
-```
-
----
-
-## 💻 Usage
-
-### Single agent (CLI)
-
-```bash
-# Argument
-python main.py "Research the top 5 Python web frameworks and save a comparison table to workspace/frameworks.md"
-
-# Interactive
-python main.py
-
-# Plan Mode
-python main.py --mode plan "Refactor this codebase"
-```
-
-### Multi-agent pipeline
-
-```bash
-python run_multi_agent.py "Build a working CLI password manager in Python with AES encryption"
-```
-
-### PlanningFlow
-
-```bash
-python run_flow.py "Scrape the top 10 Hacker News stories and generate a summary PDF"
-```
-
-### MCP
-
-```bash
-python run_mcp.py --connection sse --server-url http://localhost:8000 --prompt "List all tools"
-python run_mcp.py --interactive
-```
-
-### WebSocket server
-
-```bash
-python run_server.py --host 0.0.0.0 --port 8765
-```
-
-### Programmatic API
-
-```python
-import asyncio
-from app.agent.manus import Manus
-from app.agent.orchestrator import MultiAgentOrchestrator
-from app.permissions.gate import AgentMode
-from app.memory.long_term import LongTermMemory
-
-async def main():
-    # Single agent
-    agent = Manus(mode=AgentMode.BUILD)
-    result = await agent.run("Write and test a Fibonacci function in Python")
-    print(result)
-
-    # Multi-agent pipeline
-    orch = MultiAgentOrchestrator(mode=AgentMode.BUILD)
-    result = await orch.run("Build a REST API for a blog with SQLite")
-    print(result)
-
-    # Long-term memory
-    ltm = LongTermMemory()
-    await ltm.store("User prefers Python 3.11 and black formatting")
-    hits = await ltm.search("Python formatting preferences", k=3)
-    print(hits)
-
-asyncio.run(main())
-```
-
----
-
-## 📱 Mobile & Termux
-
-ManusClaw v3 runs on Android via **Termux** without Docker:
-
-```bash
-# Termux setup
-pkg update && pkg install python python-pip git
-git clone https://github.com/The-JDdev/ManusClaw.git
-cd ManusClaw
-pip install -r requirements.txt
-
-# Use Ollama on a PC and point Termux at it
-# config.toml:
-# base_url = "http://192.168.1.x:11434/v1"
+# Ollama example:
+# provider = "openai_compat"
+# base_url = "http://localhost:11434/v1"
 # api_key  = "none"
 # model    = "llama3.2:3b"
 
-python main.py "Help me write a bash script to organize my downloads folder"
+# ─── Agent ───────────────────────────────────────────────────────────────────
+[agent]
+max_steps  = 50
+mode       = "build"     # build | plan
 
-# Or start the server and connect from any browser on the same WiFi
-python run_server.py --port 8765
-# Open http://<termux-ip>:8765 from any device on the same network
+# ─── Permissions ────────────────────────────────────────────────────────────
+[permissions]
+bash           = "allow"
+python_execute = "allow"
+file_write     = "allow"
+browser        = "allow"
+network        = "allow"
+platform_ctrl  = "ask"
+
+# ─── Memory ──────────────────────────────────────────────────────────────────
+[memory]
+db_path        = "data/sessions.db"
+max_stm_tokens = 8000
+
+# ─── Server ──────────────────────────────────────────────────────────────────
+[server]
+host = "0.0.0.0"
+port = 8765
 ```
 
-**No-Docker fallback:** If Docker is not available, `PythonExecute` automatically uses `multiprocessing.Process` isolation. `Bash` uses the native shell. Full functionality is preserved.
+---
 
-**CORS:** The server allows all origins, so connecting a browser-hosted manusclaw-web UI to a Termux backend works out of the box.
+## 🎮 Usage
+
+**Basic task:**
+
+```bash
+manusclaw "Write a Python script that monitors CPU usage every 5 seconds"
+```
+
+**Multi-step project:**
+
+```bash
+manusclaw "Build a FastAPI REST API with JWT auth, SQLite database, and unit tests"
+```
+
+**Multi-agent pipeline:**
+
+```bash
+python run_multi_agent.py "Design and implement a microservices architecture for an e-commerce platform"
+```
+
+**WebSocket server:**
+
+```bash
+python run_server.py
+# → ws://localhost:8765
+```
+
+**Desktop GUI:**
+
+```bash
+python -m app.desktop.main
+# or run the compiled executable
+```
+
+**Platform control (via agent task):**
+
+```bash
+manusclaw "Using my GitHub token in config, create a repo called 'my-project', push the files in ./src, then open a pull request"
+```
+
+**Offline (no internet):**
+
+```bash
+# With Ollama running:
+manusclaw "Explain the Rust ownership model and write an example"
+```
 
 ---
 
@@ -870,120 +894,94 @@ python run_server.py --port 8765
 
 ```
 ManusClaw/
+├── main.py                    ← CLI entry point
+├── run_server.py              ← WebSocket server
+├── run_multi_agent.py         ← Multi-agent pipeline runner
+├── run_flow.py                ← Flow execution runner
+├── config.toml                ← Your configuration
+├── pyproject.toml             ← pip packaging + entry points
+├── install.sh                 ← Linux/macOS installer
+├── install.ps1                ← Windows PowerShell installer
+├── setup-termux.sh            ← Android/Termux installer
+├── manusclaw_inject.sh        ← Global command injector
+├── build_desktop.sh           ← Desktop GUI builder (PyInstaller + Flet)
+├── Dockerfile                 ← Multi-stage Docker build
+├── docker-compose.yml         ← CLI + server + multi-agent profiles
+│
 ├── app/
-│   ├── agent/
-│   │   ├── base.py              ← Identity, memory, permission, session DB
-│   │   ├── react.py             ← PAORR loop (think/act/observe/reflect/retry)
-│   │   ├── toolcall.py          ← Function calling + ToolSelector + retry
-│   │   ├── manus.py             ← Full orchestration, self-check injection
-│   │   ├── orchestrator.py      ← DAG multi-agent engine (Kahn's sort)
-│   │   ├── data_analysis.py
-│   │   ├── browser.py
-│   │   ├── mcp.py
-│   │   └── roles/
-│   │       ├── base_role.py     ← BaseRole, RoleMessage, RoleMessageBus
-│   │       ├── product_manager.py  ← PRD generation
-│   │       ├── architect.py     ← System design + task DAG
-│   │       ├── engineer.py      ← Code implementation via Manus
-│   │       └── qa.py            ← Validation + report
+│   ├── agent/                 ← Agent core, PAORR loop, base agent
 │   ├── tool/
-│   │   ├── base.py              ← BaseTool, ToolResult, ToolCollection
-│   │   ├── selector.py          ← ToolSelector (confidence scoring)
-│   │   ├── python_execute.py    ← task-complete / no output cap / multiprocessing
-│   │   ├── bash.py              ← task-complete / no output cap / full system access
-│   │   ├── str_replace_editor.py
-│   │   ├── browser_use_tool.py
-│   │   ├── web_search.py
-│   │   ├── crawl4ai.py
-│   │   ├── planning.py
-│   │   ├── data_viz.py
-│   │   ├── ask_human.py
-│   │   └── terminate.py
-│   ├── memory/
-│   │   ├── short_term.py        ← ShortTermMemory (rolling context buffer)
-│   │   └── long_term.py         ← LongTermMemory (SQLite FTS5 + LIKE fallback)
-│   ├── db/
-│   │   └── session.py           ← SQLite audit log (sessions/messages/tool_calls)
-│   ├── permissions/
-│   │   └── gate.py              ← 3-tier Allow/Ask/Deny + Build/Plan mode
-│   ├── flow/
-│   │   └── planning.py          ← PlanningFlow (re-planning on block)
-│   ├── mcp/
-│   │   ├── client.py
-│   │   └── server.py
-│   ├── sandbox/
-│   │   └── docker.py
+│   │   ├── bash.py            ← Cross-platform shell (bash/PowerShell/Termux)
+│   │   ├── python_execute.py  ← Python execution sandbox
+│   │   ├── browser.py         ← Playwright web automation
+│   │   ├── file_*.py          ← File read/write/search tools
+│   │   ├── web_search.py      ← Web search tool
+│   │   ├── platform_control.py← External platform manager ← NEW v3.2
+│   │   └── ...
 │   ├── llm/
-│   │   └── llm.py               ← Dual-mode router (official + universal)
-│   ├── schema.py                ← PAORR data models (Pydantic v2)
-│   ├── config.py
-│   ├── logger.py
-│   └── exceptions.py
-├── main.py                      ← Single-agent CLI
-├── run_flow.py                  ← PlanningFlow CLI
-├── run_multi_agent.py           ← Multi-agent pipeline CLI
-├── run_mcp.py                   ← MCP agent CLI
-├── run_mcp_server.py            ← MCP server host
-├── run_server.py                ← FastAPI WebSocket server
-├── config.toml
-├── requirements.txt
-├── workspace/                   ← Agent outputs
-│   ├── .memory/long_term.db     ← Long-term memory
-│   └── .sessions/manusclaw.db  ← Session audit log
-└── logs/                        ← Rotating structured logs
+│   │   ├── llm.py             ← Universal LLM router
+│   │   └── offline_router.py  ← GGUF / Ollama / LMStudio / HuggingFace ← NEW v3.2
+│   ├── desktop/
+│   │   └── main.py            ← Flet GUI desktop app ← NEW v3.2
+│   ├── memory/                ← STM + LTM + SQLite
+│   ├── flow/                  ← Planning flow, flow factory
+│   ├── server/                ← FastAPI WebSocket server
+│   ├── prompt/                ← System prompts per agent role
+│   └── mcp/                   ← MCP server/client
+│
+├── data/                      ← SQLite databases (auto-created)
+└── workspace/                 ← Agent working directory
 ```
 
 ---
 
 ## 🤝 Contributing
 
-```bash
-git clone https://github.com/The-JDdev/ManusClaw.git
-cd ManusClaw
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-```
+1. Fork the repo
+2. Create a feature branch: `git checkout -b feat/your-feature`
+3. Commit: `git commit -m "feat: add your feature"`
+4. Push: `git push origin feat/your-feature`
+5. Open a Pull Request
 
-Guidelines:
-- All tools must return `ToolResult` — never raise
-- All async code — no blocking calls in coroutines
-- Type-annotated Python (Pydantic v2)
-- Log with `from app.logger import logger`, not `print()`
-- Test with MockLLM first
+All contributions welcome — tools, LLM adapters, UI improvements, documentation, bug fixes.
 
 ---
 
-## 📄 License
+## 📜 License
 
-MIT — see [LICENSE](LICENSE). Built with passion at **JD Lab**.
+MIT License — free to use, modify, and distribute. See [LICENSE](LICENSE).
 
 ---
 
-## 💸 Support The Vision
-
-ManusClaw is free, open-source, and actively developed by one person.
-If it powers your research, saves you hours, or inspires you — please consider supporting.
+## ❤️ Support The Vision
 
 <div align="center">
 
 ---
 
-### 🙏 Donation Vault
+### 💬 A Note from the Founder (The-JDdev / SHS Shobuj):
 
-| Method | Address |
-|---|---|
-| 🪙 **USDT (TRC20)** | `TH75J4zaMPwhyR3QxEFdwTCgU2Pp3yPUEr` |
-| 💼 **WebMoney (WMT)** | `T202226490170` |
-| 💵 **WebMoney (WMZ)** | `Z430378899900` |
-| 📱 **bKash (BD)** | `01310211442` |
+*"I built this massive, autonomous AI architecture from Bangladesh, using nothing but my smartphone.*
+*Compiling, testing, and running an ecosystem of this scale on a mobile device is incredibly difficult*
+*and incurs server/API costs. I poured my heart into giving you total uncensored power.*
+*If ManusClaw has helped you dominate your workflow, please consider fueling the project*
+*through the donation vaults below. Your support keeps the beast alive."*
 
 ---
 
-**Every contribution keeps this project alive. Thank you. ❤️**
+</div>
 
-*— The-JDdev (SHS Shobuj) · JD Lab*
+| Method | Address |
+|---|---|
+| USDT TRC20 | `TH75J4zaMPwhyR3QxEFdwTCgU2Pp3yPUEr` |
+| WebMoney WMT | `T202226490170` |
+| WebMoney WMZ | `Z430378899900` |
+| bKash | `01310211442` |
 
-[![GitHub](https://img.shields.io/badge/GitHub-The--JDdev%2FManusClaw-181717?logo=github&style=for-the-badge)](https://github.com/The-JDdev/ManusClaw)
-[![Stars](https://img.shields.io/github/stars/The-JDdev/ManusClaw?style=for-the-badge&logo=github)](https://github.com/The-JDdev/ManusClaw/stargazers)
+Every contribution — no matter the size — directly funds development, API testing costs, and keeps ManusClaw free and open forever.
 
+---
+
+<div align="center">
+  Built with ❤️ from Bangladesh · <a href="https://github.com/The-JDdev">The-JDdev</a> · MIT License
 </div>
