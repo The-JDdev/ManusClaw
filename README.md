@@ -31,7 +31,10 @@
 
 | | |
 |---|---|
-| **Download APK** | [manusclaw-v3.2.0.apk](https://github.com/The-JDdev/manusclaw-app/releases/download/v3.2.0/manusclaw-v3.2.0.apk) |
+| **Standalone APK** | [manusclaw-apk-v1.0.0.apk](https://github.com/The-JDdev/manusclaw-apk/releases/download/v1.0.0/manusclaw-apk-v1.0.0.apk) |
+| **APK Source** | [github.com/The-JDdev/manusclaw-apk](https://github.com/The-JDdev/manusclaw-apk) |
+| **No PC version** | Runs on-device via Accessibility Service + Groq free LLM |
+| **PC-server client** | [manusclaw-v3.2.0.apk](https://github.com/The-JDdev/manusclaw-app/releases/download/v3.2.0/manusclaw-v3.2.0.apk) |
 | **Source** | [github.com/The-JDdev/manusclaw-app](https://github.com/The-JDdev/manusclaw-app) |
 | **Android** | 8.0+ (API 26) |
 | **Features** | Terminal-style dark UI · Real-time WebSocket streaming · Settings screen · Ollama offline support |
