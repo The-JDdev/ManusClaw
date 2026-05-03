@@ -24,8 +24,28 @@
 
 ---
 
+
+## 📱 Android App
+
+**ManusClaw is now on Android!** Download the native app from the [manusclaw-app](https://github.com/The-JDdev/manusclaw-app) repository.
+
+| | |
+|---|---|
+| **Download APK** | [manusclaw-v3.2.0.apk](https://github.com/The-JDdev/manusclaw-app/releases/download/v3.2.0/manusclaw-v3.2.0.apk) |
+| **Source** | [github.com/The-JDdev/manusclaw-app](https://github.com/The-JDdev/manusclaw-app) |
+| **Android** | 8.0+ (API 26) |
+| **Features** | Terminal-style dark UI · Real-time WebSocket streaming · Settings screen · Ollama offline support |
+
+**Quick start:**
+1. Start ManusClaw server on your PC: `python run_server.py --host 0.0.0.0 --port 8765`
+2. Install the APK on your Android phone
+3. Tap ⚙ in the app → enter your PC's local IP → Save
+4. Send tasks from your phone — agent responds in real-time
+
+---
 ## 📋 Table of Contents
 
+- [Android App](#-android-app)
 - [What is ManusClaw?](#-what-is-manusclaw)
 - [v3.2 — What's New](#-v32--whats-new)
 - [v3.1 — What's New](#-v31--whats-new)
