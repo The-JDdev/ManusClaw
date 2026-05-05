@@ -275,5 +275,10 @@ def main(page: ft.Page):
     )
 
 
+def main_entry() -> None:
+    """Packaged entry point used by pyproject.toml [project.scripts]."""
+    ft.app(target=main)
+
+
 if __name__ == "__main__":
     ft.app(target=main)

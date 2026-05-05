@@ -66,11 +66,11 @@ all = [
 ]
 
 [project.scripts]
-manusclaw          = "app.cli:main"
-Manusclaw          = "app.cli:main"
-manusclaw-server   = "app.server.app:serve"
-manusclaw-multi    = "app.multi_agent:run_cli"
-manusclaw-desktop  = "app.desktop.main:main_entry"
+manusclaw         = "app.cli:main"
+Manusclaw         = "app.cli:main"
+manusclaw-server  = "app.server.main:serve"
+manusclaw-multi   = "app.multi_agent:run_cli"
+manusclaw-desktop = "app.desktop.main:main_entry"
 
 [project.urls]
 Homepage    = "https://github.com/The-JDdev/ManusClaw"

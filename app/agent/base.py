@@ -50,13 +50,18 @@ class BaseAgent(ABC):
     name: str = "base"
     system_prompt: Optional[str] = None
 
-    def __init__(self, mode: AgentMode = AgentMode.BUILD) -> None:
+    def __init__(
+        self,
+        mode: AgentMode = AgentMode.BUILD,
+        session_id: Optional[str] = None,
+    ) -> None:
         cfg = Config.get()
         self.state = AgentState.IDLE
         from app.memory.short_term import ShortTermMemory
         self.memory = ShortTermMemory()
         self.gate = PermissionGate(mode=mode)
         self.db = SessionDB()
+        self._injected_session_id: Optional[str] = session_id
         self._session_id: Optional[str] = None
         self._step_count = 0
         self._max_steps = cfg.max_steps
@@ -78,7 +83,6 @@ class BaseAgent(ABC):
             original_goal=prompt,
         )
 
-        # Identity + directives injected into every agent
         sys_content = (
             MANUSCLAW_IDENTITY
             + "\n\n"
@@ -88,16 +92,22 @@ class BaseAgent(ABC):
         self.memory.add(Message.system(sys_content))
         self.memory.add(Message.user(prompt))
 
-        # Create DB session
         mode_str = self.gate.mode.value
-        self._session_id = await self.db.create_session(
-            goal=prompt, agent_name=self.name, mode=mode_str
-        )
+
+        if self._injected_session_id:
+            self._session_id = self._injected_session_id
+            logger.info(
+                f"[{self.name}] Using injected session_id={self._session_id}"
+            )
+        else:
+            self._session_id = await self.db.create_session(
+                goal=prompt, agent_name=self.name, mode=mode_str
+            )
 
         logger.info(
             f"[{self.name}] ▶ Starting run "
-            f"(task_id={self._task_history.task_id}, mode={mode_str}, "
-            f"max_steps={self._max_steps})"
+            f"(task_id={self._task_history.task_id}, session_id={self._session_id}, "
+            f"mode={mode_str}, max_steps={self._max_steps})"
         )
 
         results: list[str] = []
@@ -106,7 +116,6 @@ class BaseAgent(ABC):
                 self._step_count += 1
                 logger.info(f"[{self.name}] ── Step {self._step_count}/{self._max_steps} ──")
 
-                # Context refresh every 5 steps
                 if self._step_count > 1 and self._step_count % 5 == 0 and self._task_history:
                     ctx = self._task_history.context_summary()
                     self.memory.add_context_refresh(ctx)
@@ -115,7 +124,6 @@ class BaseAgent(ABC):
                 if result:
                     results.append(result)
 
-                # Loop guards
                 if self._is_stuck_by_duplicates():
                     logger.warning(f"[{self.name}] Duplicate-response loop. Nudging.")
                     self.memory.add(Message.user(
@@ -144,7 +152,7 @@ class BaseAgent(ABC):
             self.state = AgentState.ERROR
             results.append(f"Agent error: {e}")
         finally:
-            if self._session_id:
+            if self._session_id and not self._injected_session_id:
                 await self.db.close_session(
                     self._session_id,
                     state=self.state.value,
@@ -228,7 +236,6 @@ class BaseAgent(ABC):
         )
         step.observations.append(obs)
 
-        # Fire-and-forget DB logging
         if self._session_id:
             asyncio.create_task(self.db.log_tool_call(
                 session_id=self._session_id,

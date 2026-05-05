@@ -39,6 +39,7 @@ class ToolCallAgent(ReActAgent):
     - Every outcome is recorded in TaskHistory as an Observation
     - Selector.record_use / record_failure / record_success tracks
       tool performance across the run for adaptive scoring
+    - Permission gate is enforced before every tool execution
     """
 
     name = "toolcall"
@@ -76,14 +77,11 @@ tool or different arguments — DO NOT repeat the same failing call.
         P/A — Inject tool scores for the current sub-goal, then ask the
         LLM which tool to call (function-calling mode).
         """
-        # Extract the current sub-goal from the last user/assistant message
         goal = self._extract_current_goal()
 
-        # Score all tools heuristically against this goal
         recently_failed = self._get_recently_failed_tools()
         selection = self._selector.score(goal, recently_failed=recently_failed)
 
-        # Inject the scoring hint into the conversation BEFORE the LLM decides
         hint = selection.to_prompt_hint()
         self.memory.add(Message.user(
             f"\n{hint}\n\n"
@@ -142,6 +140,18 @@ tool or different arguments — DO NOT repeat the same failing call.
                     f"[{self.name}] Tool call ({attempt}/{MAX_TOOL_RETRIES}): "
                     f"{name}({self._fmt_args(args)})"
                 )
+
+                # Permission gate — must pass before execution
+                allowed = await self.check_permission(name, args)
+                if not allowed:
+                    denied_result = ToolResult(error=f"Permission denied for tool '{name}'.")
+                    self.memory.add(Message.tool(
+                        content=str(denied_result),
+                        tool_call_id=tool_call_id,
+                        name=name,
+                    ))
+                    return denied_result
+
                 result = await self.tools.execute(name, **args)
                 logger.info(f"[{self.name}] Tool result: {str(result)[:300]}")
 
@@ -156,12 +166,9 @@ tool or different arguments — DO NOT repeat the same failing call.
                     name=name,
                 ))
 
-                # Error → feed back + ask for self-correction
                 if result.error and attempt < MAX_TOOL_RETRIES:
-                    # Update selector so it penalises this tool going forward
                     self._selector.record_failure(name)
 
-                    # Score alternatives (exclude the just-failed tool)
                     goal = self._extract_current_goal()
                     alt_selection = self._selector.score(goal, recently_failed=[name])
                     alt_hint = alt_selection.to_prompt_hint()
@@ -260,14 +267,9 @@ tool or different arguments — DO NOT repeat the same failing call.
     # ------------------------------------------------------------------
 
     def _extract_current_goal(self) -> str:
-        """
-        Pull the most recent meaningful user or assistant text to use
-        as the sub-goal for tool scoring.
-        """
         for m in reversed(self.memory.messages):
             if m.role.value in ("user", "assistant") and m.content:
                 content = m.content.strip()
-                # Skip injected hints (they start with our sentinel box)
                 if content.startswith("┌─ TOOL INTELLIGENCE"):
                     continue
                 if content.startswith("\n┌─ TOOL INTELLIGENCE"):
@@ -280,7 +282,6 @@ tool or different arguments — DO NOT repeat the same failing call.
         return "general task"
 
     def _get_recently_failed_tools(self) -> list[str]:
-        """Return tool names that failed in recent observations."""
         if not self._task_history:
             return []
         failed: list[str] = []

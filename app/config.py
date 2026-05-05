@@ -25,6 +25,7 @@ class LLMConfig(BaseModel):
     temperature: float = 0.0
     max_retries: int = 6
     timeout: int = 120
+    extra_headers: dict[str, str] = Field(default_factory=dict)
 
 
 class BrowserConfig(BaseModel):
@@ -34,7 +35,7 @@ class BrowserConfig(BaseModel):
 
 
 class SearchConfig(BaseModel):
-    engines: list[str] = Field(default_factory=lambda: ["google", "duckduckgo", "baidu", "bing"])
+    engines: list[str] = Field(default_factory=lambda: ["duckduckgo", "bing"])
     max_results: int = 10
 
 
@@ -97,13 +98,11 @@ class Config:
 
         cfg = AppConfig.model_validate(raw) if raw else AppConfig()
 
-        # Environment variable overrides for secrets
         if not cfg.llm.api_key:
             cfg.llm.api_key = os.getenv("OPENAI_API_KEY") or os.getenv("ANTHROPIC_API_KEY")
         if not cfg.llm.base_url:
             cfg.llm.base_url = os.getenv("LLM_BASE_URL")
 
-        # Force mock if no real provider configured
         if cfg.llm.provider not in ("mock",) and not cfg.llm.api_key:
             cfg.llm.provider = "mock"
 

@@ -4,9 +4,10 @@ from __future__ import annotations
 ManusClaw HTTP/WebSocket Server
 ================================
 FastAPI backend that exposes the full ManusClaw agent engine via:
-  • REST API — session management, history queries, tool introspection
+  • REST API   — session management, history queries, tool introspection
   • WebSocket  — real-time streaming of agent thoughts, tool calls, and outputs
-  • Full CORS  — works with any frontend origin (Vercel, GitHub Pages, Termux, etc.)
+  • API Key    — optional authentication via MANUSCLAW_API_KEY env var
+  • CORS       — configurable via MANUSCLAW_ALLOWED_ORIGINS env var
 
 Run with:
   python run_server.py
@@ -16,12 +17,14 @@ Run with:
 
 import asyncio
 import json
+import os
 import time
 from typing import Any, Optional
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
+from fastapi.security import APIKeyHeader
 from pydantic import BaseModel
 
 from app.db.session import SessionDB
@@ -35,16 +38,47 @@ app = FastAPI(
 )
 
 # ---------------------------------------------------------------------------
-# Full CORS — allows manusclaw-web on any origin (Vercel, GitHub Pages, Termux)
+# CORS — explicitly configured; allow_credentials only when origins are known
 # ---------------------------------------------------------------------------
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+_raw_origins = os.getenv("MANUSCLAW_ALLOWED_ORIGINS", "")
+_allowed_origins: list[str] = (
+    [o.strip() for o in _raw_origins.split(",") if o.strip()]
+    if _raw_origins
+    else []
 )
+
+if _allowed_origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=_allowed_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+else:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=False,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+# ---------------------------------------------------------------------------
+# API Key authentication — enabled only when MANUSCLAW_API_KEY is set
+# ---------------------------------------------------------------------------
+
+_API_KEY = os.getenv("MANUSCLAW_API_KEY", "")
+_api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+
+
+async def require_api_key(key: Optional[str] = Depends(_api_key_header)) -> None:
+    if not _API_KEY:
+        return
+    if key != _API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid or missing API key.")
+
 
 # ---------------------------------------------------------------------------
 # WebSocket manager
@@ -82,11 +116,11 @@ db = SessionDB()
 
 
 # ---------------------------------------------------------------------------
-# Streaming agent wrapper — emits WebSocket events during execution
+# Streaming agent wrapper — emits WebSocket events + uses unified session_id
 # ---------------------------------------------------------------------------
 
 class StreamingManus:
-    """Wraps Manus agent with WebSocket event emission."""
+    """Wraps Manus agent with WebSocket event emission and unified session tracking."""
 
     def __init__(self, session_id: str, mode: AgentMode = AgentMode.BUILD) -> None:
         self.session_id = session_id
@@ -95,9 +129,9 @@ class StreamingManus:
     async def run(self, prompt: str) -> str:
         from app.agent.manus import Manus
 
-        agent = Manus(mode=self.mode)
+        # Inject the server-minted session_id so the agent doesn't create a new one
+        agent = Manus(mode=self.mode, session_id=self.session_id)
 
-        # Monkey-patch the step method to emit WS events
         original_step = agent.step
 
         async def patched_step():
@@ -162,7 +196,7 @@ async def root():
     return {"message": "ManusClaw Agent Server v3.0 — connect via /ws/<session_id>"}
 
 
-@app.post("/run", response_model=RunResponse)
+@app.post("/run", response_model=RunResponse, dependencies=[Depends(require_api_key)])
 async def run_agent(req: RunRequest):
     """
     Fire-and-forget agent run. Returns session_id immediately.
@@ -182,14 +216,14 @@ async def run_agent(req: RunRequest):
     return RunResponse(session_id=session_id, status="running")
 
 
-@app.post("/run/sync", response_model=RunResponse)
+@app.post("/run/sync", response_model=RunResponse, dependencies=[Depends(require_api_key)])
 async def run_agent_sync(req: RunRequest):
     """Synchronous run — waits for completion (no streaming)."""
     from app.agent.manus import Manus
     mode = AgentMode.PLAN if req.mode.lower() == "plan" else AgentMode.BUILD
     session_id = await db.create_session(req.prompt, mode=req.mode)
     try:
-        agent = Manus(mode=mode)
+        agent = Manus(mode=mode, session_id=session_id)
         output = await agent.run(req.prompt)
         await db.close_session(session_id, state="finished")
         return RunResponse(session_id=session_id, status="finished", output=output)
@@ -198,19 +232,19 @@ async def run_agent_sync(req: RunRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/sessions")
+@app.get("/sessions", dependencies=[Depends(require_api_key)])
 async def list_sessions(limit: int = 20):
     sessions = await db.get_sessions(limit=limit)
     return {"sessions": sessions}
 
 
-@app.get("/sessions/{session_id}/messages")
+@app.get("/sessions/{session_id}/messages", dependencies=[Depends(require_api_key)])
 async def get_messages(session_id: str):
     msgs = await db.get_session_messages(session_id)
     return {"session_id": session_id, "messages": msgs}
 
 
-@app.get("/sessions/{session_id}/tool_calls")
+@app.get("/sessions/{session_id}/tool_calls", dependencies=[Depends(require_api_key)])
 async def get_tool_calls(session_id: str):
     calls = await db.get_session_tool_calls(session_id)
     return {"session_id": session_id, "tool_calls": calls}
@@ -235,6 +269,16 @@ async def list_tools():
 
 @app.websocket("/ws/{session_id}")
 async def websocket_endpoint(websocket: WebSocket, session_id: str):
+    # API key check for WebSocket via query param or header
+    if _API_KEY:
+        token = (
+            websocket.query_params.get("api_key")
+            or websocket.headers.get("x-api-key", "")
+        )
+        if token != _API_KEY:
+            await websocket.close(code=4001)
+            return
+
     await manager.connect(websocket, session_id)
     logger.info(f"[Server] WebSocket connected: {session_id}")
     try:
@@ -286,7 +330,7 @@ class MultiAgentRequest(BaseModel):
     roles: Optional[list[str]] = None
 
 
-@app.post("/multi-agent")
+@app.post("/multi-agent", dependencies=[Depends(require_api_key)])
 async def run_multi_agent(req: MultiAgentRequest):
     """Run the full ProductManager → Architect → Engineer → QA pipeline."""
     from app.agent.orchestrator import MultiAgentOrchestrator
@@ -294,3 +338,25 @@ async def run_multi_agent(req: MultiAgentRequest):
     orchestrator = MultiAgentOrchestrator(mode=mode)
     result = await orchestrator.run(req.goal)
     return {"result": result}
+
+
+# ---------------------------------------------------------------------------
+# Packaged entry point (used by pyproject.toml script)
+# ---------------------------------------------------------------------------
+
+def serve() -> None:
+    import argparse
+    import uvicorn
+
+    parser = argparse.ArgumentParser(description="ManusClaw Agent Server")
+    parser.add_argument("--host", default="0.0.0.0")
+    parser.add_argument("--port", type=int, default=8765)
+    parser.add_argument("--reload", action="store_true")
+    args = parser.parse_args()
+
+    uvicorn.run(
+        "app.server.main:app",
+        host=args.host,
+        port=args.port,
+        reload=args.reload,
+    )
