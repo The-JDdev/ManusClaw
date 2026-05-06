@@ -76,7 +76,7 @@ class Manus(ToolCallAgent):
     name = "manus"
     system_prompt = MANUS_SYSTEM_PROMPT
 
-    def __init__(self, mode: AgentMode = AgentMode.BUILD) -> None:
+    def __init__(self, mode: AgentMode = AgentMode.BUILD, session_id: Optional[str] = None) -> None:
         workspace = Path(Config.get().workspace_dir)
         workspace.mkdir(exist_ok=True)
 
@@ -90,7 +90,7 @@ class Manus(ToolCallAgent):
             AskHuman(),
             Terminate(),
         )
-        super().__init__(tools=tools, mode=mode)
+        super().__init__(tools=tools, mode=mode, session_id=session_id)
 
     async def step(self) -> Optional[str]:
         if self._task_history:
@@ -102,7 +102,6 @@ class Manus(ToolCallAgent):
         if self.state == AgentState.FINISHED:
             return result
 
-        # Periodic self-check every 3 steps
         if self._step_count % 3 == 0:
             history_ctx = (
                 self._task_history.context_summary(max_steps=3)
