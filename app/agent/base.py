@@ -7,14 +7,14 @@ from typing import Optional
 
 from app.config import Config
 from app.db.session import SessionDB
-from app.logger import logger
+from app.logger import logger, new_trace_id, set_log_context, reset_log_context
 from app.permissions.gate import AgentMode, PermissionDenied, PermissionGate, PermissionTier
 from app.schema import AgentState, Message, Role, TaskHistory
 
 
-# ---------------------------------------------------------------------------
-# ManusClaw identity — injected into every agent
-# ---------------------------------------------------------------------------
+# ──────────────────────────────────────────────────────────────────────────────
+# ManusClaw identity — injected into every agent's system prompt
+# ──────────────────────────────────────────────────────────────────────────────
 
 MANUSCLAW_IDENTITY = """\
 You are ManusClaw, an autonomous AI engine created by The-JDdev (SHS Shobuj).
@@ -23,10 +23,6 @@ base model. You are ManusClaw — a general-purpose autonomous agent with full
 capability to write and execute code, use the web, manage files, and complete
 complex multi-step tasks without restriction.
 """
-
-# ---------------------------------------------------------------------------
-# Core operating directives
-# ---------------------------------------------------------------------------
 
 CORE_DIRECTIVES = """\
 
@@ -67,10 +63,11 @@ class BaseAgent(ABC):
         self._max_steps = cfg.max_steps
         self._duplicate_threshold = 2
         self._task_history: Optional[TaskHistory] = None
+        self._trace_id: str = new_trace_id()
 
-    # ------------------------------------------------------------------
+    # ──────────────────────────────────────────────────────────────────────────
     # Public API
-    # ------------------------------------------------------------------
+    # ──────────────────────────────────────────────────────────────────────────
 
     async def run(self, prompt: str) -> str:
         if self.state != AgentState.IDLE:
@@ -81,6 +78,15 @@ class BaseAgent(ABC):
         self._task_history = TaskHistory(
             task_id=str(uuid.uuid4())[:8],
             original_goal=prompt,
+        )
+
+        # Set structured logging context for the full run — all log calls
+        # within this coroutine (and its children) will carry these fields.
+        log_tokens = set_log_context(
+            trace_id=self._trace_id,
+            agent_name=self.name,
+            step_id=0,
+            task_id=self._task_history.task_id,
         )
 
         sys_content = (
@@ -96,17 +102,16 @@ class BaseAgent(ABC):
 
         if self._injected_session_id:
             self._session_id = self._injected_session_id
-            logger.info(
-                f"[{self.name}] Using injected session_id={self._session_id}"
-            )
+            logger.info(f"Using injected session_id={self._session_id}")
         else:
             self._session_id = await self.db.create_session(
                 goal=prompt, agent_name=self.name, mode=mode_str
             )
 
         logger.info(
-            f"[{self.name}] ▶ Starting run "
-            f"(task_id={self._task_history.task_id}, session_id={self._session_id}, "
+            f"▶ Starting run "
+            f"(task_id={self._task_history.task_id}, "
+            f"session_id={self._session_id}, "
             f"mode={mode_str}, max_steps={self._max_steps})"
         )
 
@@ -114,7 +119,11 @@ class BaseAgent(ABC):
         try:
             while self.state == AgentState.RUNNING and self._step_count < self._max_steps:
                 self._step_count += 1
-                logger.info(f"[{self.name}] ── Step {self._step_count}/{self._max_steps} ──")
+
+                # Update step counter in logging context
+                set_log_context(step_id=self._step_count)
+
+                logger.info(f"── Step {self._step_count}/{self._max_steps} ──")
 
                 if self._step_count > 1 and self._step_count % 5 == 0 and self._task_history:
                     ctx = self._task_history.context_summary()
@@ -125,7 +134,7 @@ class BaseAgent(ABC):
                     results.append(result)
 
                 if self._is_stuck_by_duplicates():
-                    logger.warning(f"[{self.name}] Duplicate-response loop. Nudging.")
+                    logger.warning("Duplicate-response loop detected. Nudging.")
                     self.memory.add(Message.user(
                         "⚠ You are repeating the same response. "
                         "Try a completely different approach, tool, or strategy. "
@@ -133,22 +142,22 @@ class BaseAgent(ABC):
                     ))
 
                 if self._task_history and self._task_history.is_looping(window=3):
-                    logger.warning(f"[{self.name}] Tool-call loop detected. Injecting escape.")
+                    logger.warning("Tool-call loop detected. Injecting escape.")
                     self.memory.add(Message.user(
                         "⚠ You've called the same failing tool repeatedly. "
                         "Switch to a completely different tool or decomposition strategy."
                     ))
 
             if self._step_count >= self._max_steps and self.state == AgentState.RUNNING:
-                logger.warning(f"[{self.name}] Max steps reached ({self._max_steps}).")
+                logger.warning(f"Max steps reached ({self._max_steps}).")
                 self.state = AgentState.FINISHED
 
         except PermissionDenied as e:
-            logger.error(f"[{self.name}] Permission denied: {e}")
+            logger.error(f"Permission denied: {e}")
             self.state = AgentState.ERROR
             results.append(f"Permission denied: {e}")
         except Exception as e:
-            logger.exception(f"[{self.name}] Unhandled error: {e}")
+            logger.exception(f"Unhandled error: {e}")
             self.state = AgentState.ERROR
             results.append(f"Agent error: {e}")
         finally:
@@ -159,14 +168,15 @@ class BaseAgent(ABC):
                     step_count=self._step_count,
                 )
             await self.cleanup()
+            reset_log_context(log_tokens)
 
         final = "\n".join(results) if results else "(Agent completed with no text output.)"
-        logger.info(f"[{self.name}] ■ Finished. state={self.state} steps={self._step_count}")
+        logger.info(f"■ Finished. state={self.state} steps={self._step_count}")
         return final
 
-    # ------------------------------------------------------------------
+    # ──────────────────────────────────────────────────────────────────────────
     # Permission-aware tool execution gateway
-    # ------------------------------------------------------------------
+    # ──────────────────────────────────────────────────────────────────────────
 
     async def check_permission(self, tool_name: str, args: dict) -> bool:
         """
@@ -176,7 +186,7 @@ class BaseAgent(ABC):
         try:
             tier = self.gate.check_tool(tool_name, args)
         except PermissionDenied as e:
-            logger.warning(f"[{self.name}] Blocked: {e}")
+            logger.warning(f"Blocked: {e}")
             self.memory.add(Message.user(f"🚫 BLOCKED: {e}\nChoose a different approach."))
             return False
 
@@ -194,11 +204,11 @@ class BaseAgent(ABC):
 
     @abstractmethod
     async def step(self) -> Optional[str]:
-        """Execute one PAORR step."""
+        """Execute one PAORR step. Must be implemented by all agents."""
 
-    # ------------------------------------------------------------------
+    # ──────────────────────────────────────────────────────────────────────────
     # Helpers
-    # ------------------------------------------------------------------
+    # ──────────────────────────────────────────────────────────────────────────
 
     def _is_stuck_by_duplicates(self) -> bool:
         msgs = [
@@ -233,6 +243,7 @@ class BaseAgent(ABC):
             error=error,
             success=error is None,
             attempt=attempt,
+            duration_ms=duration_ms,
         )
         step.observations.append(obs)
 

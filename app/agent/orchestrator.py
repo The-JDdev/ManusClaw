@@ -3,18 +3,35 @@ from __future__ import annotations
 """
 MultiAgentOrchestrator — DAG-based multi-role execution engine.
 
-Roles execute in topological order based on declared dependencies.
-Each role Observes → Thinks → Acts → Publishes via the async message bus.
+Architecture boundary
+─────────────────────
+Orchestrator  controls execution ORDER and session management.
+              It does NOT implement task logic (that is Agent territory)
+              or step planning (that is PlanningFlow territory).
 
-Default pipeline:
+Flow:
   ProductManager → Architect → Engineer → QA
 
-Custom pipelines can be injected by passing a roles_order list and
-a dependency_graph dict.
+Each role:
+  1. Receives the accumulated context from its upstream predecessors
+  2. Runs its Observe→Think→Act→Publish loop
+  3. Returns a typed RoleResult written into the PipelineResult
+
+Event hooks
+───────────
+Pass callables to on_stage_start / on_stage_complete / on_stage_error to
+receive live events without subclassing. All hooks are async-safe (run via
+asyncio.create_task) so they never block the pipeline.
+
+Return types
+────────────
+run()          → str           (summary string — keeps server API stable)
+run_pipeline() → PipelineResult (typed, structured)
 """
 
 import asyncio
-from typing import Optional
+import time
+from typing import Callable, Optional
 
 from app.agent.roles.base_role import RoleMessage, RoleMessageBus
 from app.agent.roles.product_manager import ProductManagerRole
@@ -22,11 +39,13 @@ from app.agent.roles.architect import ArchitectRole
 from app.agent.roles.engineer import EngineerRole
 from app.agent.roles.qa import QARole
 from app.db.session import SessionDB
+from app.exceptions import OrchestratorError, PipelineCycleError
 from app.logger import logger
 from app.permissions.gate import AgentMode, PermissionGate
+from app.schema import PipelineResult, PipelineStageResult
 
 
-_DEFAULT_PIPELINE = [
+_DEFAULT_PIPELINE: list[str] = [
     "product_manager",
     "architect",
     "engineer",
@@ -35,86 +54,176 @@ _DEFAULT_PIPELINE = [
 
 _DEFAULT_DEPS: dict[str, list[str]] = {
     "product_manager": [],
-    "architect": ["product_manager"],
-    "engineer": ["architect"],
-    "qa": ["engineer"],
+    "architect":       ["product_manager"],
+    "engineer":        ["architect"],
+    "qa":              ["engineer"],
 }
 
 
 class MultiAgentOrchestrator:
     """
-    Runs a set of specialist roles in dependency order (topological sort).
-    Each role receives the accumulated context from all predecessors.
+    Runs specialist roles in dependency order (topological sort via Kahn's algorithm).
+    Each role receives the accumulated context from all its upstream predecessors.
+
+    Parameters
+    ----------
+    mode         : AgentMode      BUILD (default) or PLAN
+    pipeline     : list[str]      Role names in declaration order
+    deps         : dict           {role: [upstream_roles]}
+    timeout      : int            Global wall-clock timeout in seconds (default 7200)
+    on_stage_start    : async callable(role_name: str) → None
+    on_stage_complete : async callable(role_name: str, output: str) → None
+    on_stage_error    : async callable(role_name: str, error: str) → None
     """
 
     def __init__(
         self,
-        mode: AgentMode = AgentMode.BUILD,
-        pipeline: Optional[list[str]] = None,
-        deps: Optional[dict[str, list[str]]] = None,
-        timeout: int = 7200,
+        mode:                AgentMode                              = AgentMode.BUILD,
+        pipeline:            Optional[list[str]]                   = None,
+        deps:                Optional[dict[str, list[str]]]        = None,
+        timeout:             int                                    = 7200,
+        on_stage_start:      Optional[Callable[..., object]]       = None,
+        on_stage_complete:   Optional[Callable[..., object]]       = None,
+        on_stage_error:      Optional[Callable[..., object]]       = None,
     ) -> None:
-        self.mode = mode
-        self.pipeline = pipeline or _DEFAULT_PIPELINE
-        self.deps = deps or _DEFAULT_DEPS
-        self.timeout = timeout
-        self.bus = RoleMessageBus()
-        self.db = SessionDB()
-        self.gate = PermissionGate(mode=mode)
+        self.mode      = mode
+        self.pipeline  = pipeline or _DEFAULT_PIPELINE
+        self.deps      = deps     or _DEFAULT_DEPS
+        self.timeout   = timeout
+        self.bus       = RoleMessageBus()
+        self.db        = SessionDB()
+        self.gate      = PermissionGate(mode=mode)
 
-    # ------------------------------------------------------------------
+        # Event hooks — fire-and-forget (non-blocking)
+        self._on_stage_start    = on_stage_start
+        self._on_stage_complete = on_stage_complete
+        self._on_stage_error    = on_stage_error
+
+    # ──────────────────────────────────────────────────────────────────────────
     # Public API
-    # ------------------------------------------------------------------
+    # ──────────────────────────────────────────────────────────────────────────
 
     async def run(self, goal: str) -> str:
-        logger.info(f"[Orchestrator] ▶ Multi-agent run | mode={self.mode} | goal={goal[:80]}")
-        session_id = await self.db.create_session(goal, agent_name="orchestrator", mode=self.mode.value)
+        """
+        Run the full pipeline. Returns a plain-text summary string.
+        (Backward-compatible with the existing server endpoint.)
+        """
+        result = await self.run_pipeline(goal)
+        return result.to_summary()
 
-        order = self._topological_sort()
-        logger.info(f"[Orchestrator] Execution order: {' → '.join(order)}")
+    async def run_pipeline(self, goal: str) -> PipelineResult:
+        """
+        Run the full pipeline. Returns a typed PipelineResult.
+        """
+        import uuid
+        pipeline_id = str(uuid.uuid4())[:8]
 
-        results: dict[str, str] = {}
-        context = goal
+        logger.info(
+            f"[Orchestrator:{pipeline_id}] ▶ Multi-agent run "
+            f"| mode={self.mode.value} | goal={goal[:80]}"
+        )
+
+        session_id = await self.db.create_session(
+            goal, agent_name="orchestrator", mode=self.mode.value
+        )
+
+        try:
+            order = self._topological_sort()
+        except PipelineCycleError as e:
+            raise OrchestratorError(str(e), pipeline=self.pipeline) from e
+
+        logger.info(
+            f"[Orchestrator:{pipeline_id}] Execution order: {' → '.join(order)}"
+        )
+
+        pipeline_result = PipelineResult(
+            pipeline_id=pipeline_id,
+            goal=goal,
+        )
+        results:   dict[str, str] = {}
+        t_pipeline = time.monotonic()
 
         try:
             async with asyncio.timeout(self.timeout):
                 for role_name in order:
-                    logger.info(f"[Orchestrator] ── Role: {role_name} ──")
-                    role = self._build_role(role_name)
+                    logger.info(
+                        f"[Orchestrator:{pipeline_id}] ── Role: {role_name} ──"
+                    )
+                    await self._fire_hook(self._on_stage_start, role_name)
 
-                    # Inject accumulated context from upstream roles
+                    role       = self._build_role(role_name)
                     role_input = self._build_role_input(goal, role_name, results)
+                    t0         = time.monotonic()
 
                     try:
-                        result = await role.run(role_input)
-                        results[role_name] = result
-                        logger.info(f"[Orchestrator] {role_name} ✓ ({len(result)} chars)")
-                        await self.db.log_message(session_id, role_name, result[:2048])
+                        output = await role.run(role_input)
+                        results[role_name] = output
+                        elapsed = time.monotonic() - t0
+
+                        logger.info(
+                            f"[Orchestrator:{pipeline_id}] "
+                            f"{role_name} ✓ ({len(output)} chars, {elapsed:.1f}s)"
+                        )
+                        await self.db.log_message(session_id, role_name, output[:2048])
+
+                        pipeline_result.stages.append(PipelineStageResult(
+                            role_name  = role_name,
+                            status     = "completed",
+                            output     = output,
+                            duration_s = round(elapsed, 2),
+                        ))
+                        await self._fire_hook(self._on_stage_complete, role_name, output)
+
                     except Exception as e:
-                        logger.error(f"[Orchestrator] {role_name} failed: {e}")
-                        results[role_name] = f"ERROR: {e}"
-                        await self.db.log_message(session_id, role_name, f"ERROR: {e}")
+                        elapsed = time.monotonic() - t0
+                        err_msg = f"ERROR: {e}"
+                        logger.error(
+                            f"[Orchestrator:{pipeline_id}] {role_name} ✗ {err_msg}"
+                        )
+                        results[role_name] = err_msg
+                        await self.db.log_message(session_id, role_name, err_msg)
+
+                        pipeline_result.stages.append(PipelineStageResult(
+                            role_name  = role_name,
+                            status     = "error",
+                            output     = err_msg,
+                            duration_s = round(elapsed, 2),
+                        ))
+                        await self._fire_hook(self._on_stage_error, role_name, err_msg)
 
         except asyncio.TimeoutError:
-            logger.warning("[Orchestrator] Global timeout reached.")
-            results["_timeout"] = "⏱ Orchestrator timed out."
+            logger.warning(f"[Orchestrator:{pipeline_id}] Global timeout reached.")
+            pipeline_result.timed_out = True
 
-        await self.db.close_session(session_id, state="finished", step_count=len(order))
+        # Derive overall verdict from QA stage
+        pipeline_result.total_duration_s = round(time.monotonic() - t_pipeline, 2)
+        pipeline_result.verdict = self._derive_verdict(results, pipeline_result.timed_out)
 
-        return self._build_summary(goal, results, order)
+        await self.db.close_session(
+            session_id, state="finished", step_count=len(order)
+        )
 
-    # ------------------------------------------------------------------
-    # Topological sort (Kahn's algorithm)
-    # ------------------------------------------------------------------
+        logger.info(
+            f"[Orchestrator:{pipeline_id}] ■ Pipeline complete. "
+            f"verdict={pipeline_result.verdict} "
+            f"duration={pipeline_result.total_duration_s:.1f}s"
+        )
+        return pipeline_result
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # Topological sort — Kahn's algorithm
+    # ──────────────────────────────────────────────────────────────────────────
 
     def _topological_sort(self) -> list[str]:
-        in_degree = {r: len(self.deps.get(r, [])) for r in self.pipeline}
-        queue = [r for r in self.pipeline if in_degree[r] == 0]
-        order: list[str] = []
+        in_degree   = {r: len(self.deps.get(r, [])) for r in self.pipeline}
+        queue       = [r for r in self.pipeline if in_degree[r] == 0]
+        order:      list[str] = []
         dependents: dict[str, list[str]] = {r: [] for r in self.pipeline}
+
         for r, d_list in self.deps.items():
             for d in d_list:
-                dependents[d].append(r)
+                if d in dependents:
+                    dependents[d].append(r)
 
         while queue:
             role = queue.pop(0)
@@ -125,54 +234,79 @@ class MultiAgentOrchestrator:
                     queue.append(dep)
 
         if len(order) != len(self.pipeline):
-            logger.warning("[Orchestrator] Cycle detected in DAG — falling back to linear order.")
-            return self.pipeline[:]
+            raise PipelineCycleError(
+                "Dependency graph contains a cycle — cannot determine execution order.",
+                pipeline=self.pipeline,
+            )
 
         return order
 
-    # ------------------------------------------------------------------
+    # ──────────────────────────────────────────────────────────────────────────
     # Role factory
-    # ------------------------------------------------------------------
+    # ──────────────────────────────────────────────────────────────────────────
 
     def _build_role(self, role_name: str):
         role_map = {
             "product_manager": ProductManagerRole,
-            "architect": ArchitectRole,
-            "engineer": EngineerRole,
-            "qa": QARole,
+            "architect":       ArchitectRole,
+            "engineer":        EngineerRole,
+            "qa":              QARole,
         }
         cls = role_map.get(role_name)
         if cls is None:
-            raise ValueError(f"Unknown role: {role_name}")
+            raise OrchestratorError(
+                f"Unknown role: '{role_name}'",
+                pipeline=self.pipeline,
+            )
         return cls(self.bus)
 
-    def _build_role_input(self, goal: str, role_name: str, results: dict[str, str]) -> str:
+    def _build_role_input(
+        self,
+        goal:       str,
+        role_name:  str,
+        results:    dict[str, str],
+    ) -> str:
         upstream = self.deps.get(role_name, [])
         if not upstream:
             return goal
         parts = [f"ORIGINAL GOAL:\n{goal}"]
         for up in upstream:
             if up in results:
-                parts.append(f"\n{up.upper().replace('_', ' ')} OUTPUT:\n{results[up][:3000]}")
+                parts.append(
+                    f"\n{up.upper().replace('_', ' ')} OUTPUT:\n{results[up][:3000]}"
+                )
         return "\n\n".join(parts)
 
-    # ------------------------------------------------------------------
-    # Summary
-    # ------------------------------------------------------------------
+    # ──────────────────────────────────────────────────────────────────────────
+    # Verdict derivation
+    # ──────────────────────────────────────────────────────────────────────────
 
-    def _build_summary(self, goal: str, results: dict[str, str], order: list[str]) -> str:
-        lines = [
-            "═══════════════════════════════════════════════════",
-            "  ManusClaw Multi-Agent Pipeline — Final Report",
-            "═══════════════════════════════════════════════════",
-            f"  Goal: {goal[:80]}",
-            "",
-        ]
-        for r in order:
-            res = results.get(r, "(no output)")
-            status = "✓" if not res.startswith("ERROR") else "✗"
-            lines.append(f"  {status} {r.replace('_', ' ').title()}: {res[:120]}...")
-        if "_timeout" in results:
-            lines.append(f"\n  ⏱ {results['_timeout']}")
-        lines.append("═══════════════════════════════════════════════════")
-        return "\n".join(lines)
+    @staticmethod
+    def _derive_verdict(results: dict[str, str], timed_out: bool) -> str:
+        if timed_out:
+            return "timeout"
+        qa_out = results.get("qa", "").upper()
+        if "APPROVED" in qa_out:
+            return "approved"
+        if "REWORK" in qa_out:
+            return "rework"
+        any_error = any(v.startswith("ERROR:") for v in results.values())
+        if any_error:
+            return "error"
+        return "unknown"
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # Event hook dispatcher
+    # ──────────────────────────────────────────────────────────────────────────
+
+    @staticmethod
+    async def _fire_hook(hook: Optional[Callable], *args: object) -> None:
+        """Fire an event hook without blocking the pipeline."""
+        if hook is None:
+            return
+        try:
+            coro = hook(*args)
+            if asyncio.iscoroutine(coro):
+                asyncio.create_task(coro)
+        except Exception as e:
+            logger.debug(f"[Orchestrator] Hook error (non-fatal): {e}")
