@@ -47,15 +47,12 @@ def _run_agent(task: str, on_token, on_done, on_error):
     """Run ManusClaw agent in a background thread."""
     try:
         # Lazy import so desktop works even if some deps are missing
-        from app.flow.flow_factory import FlowFactory, FlowType
+        from app.flow.planning import PlanningFlow
         import asyncio as _aio
 
         async def _go():
-            flow = await FlowFactory.create_flow(
-                flow_type=FlowType.PLANNING,
-                agents={},
-            )
-            result = await flow.execute(task)
+            flow = PlanningFlow()
+            result = await flow.run(task)
             return result
 
         loop = _aio.new_event_loop()

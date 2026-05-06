@@ -117,50 +117,55 @@ class MultiAgentOrchestrator:
         results: dict[str, str] = {}
         t_pipeline = time.monotonic()
 
+        async def _run_stages() -> None:
+            for role_name in order:
+                logger.info(f"[Orchestrator:{pipeline_id}] ── Role: {role_name} ──")
+                await self._fire_hook(self._on_stage_start, role_name)
+
+                role = self._build_role(role_name)
+                role_input = self._build_role_input(goal, role_name, results)
+                t0 = time.monotonic()
+
+                try:
+                    output = await role.run(role_input)
+                    results[role_name] = output
+                    elapsed = time.monotonic() - t0
+
+                    logger.info(
+                        f"[Orchestrator:{pipeline_id}] "
+                        f"{role_name} ✓ ({len(output)} chars, {elapsed:.1f}s)"
+                    )
+                    await self.db.log_message(session_id, role_name, output[:2048])
+
+                    pipeline_result.stages.append(PipelineStageResult(
+                        role_name=role_name,
+                        status="completed",
+                        output=output,
+                        duration_s=round(elapsed, 2),
+                    ))
+                    await self._fire_hook(self._on_stage_complete, role_name, output)
+
+                except Exception as e:
+                    elapsed = time.monotonic() - t0
+                    err_msg = f"ERROR: {e}"
+                    logger.error(f"[Orchestrator:{pipeline_id}] {role_name} ✗ {err_msg}")
+                    results[role_name] = err_msg
+                    await self.db.log_message(session_id, role_name, err_msg)
+
+                    pipeline_result.stages.append(PipelineStageResult(
+                        role_name=role_name,
+                        status="error",
+                        output=err_msg,
+                        duration_s=round(elapsed, 2),
+                    ))
+                    await self._fire_hook(self._on_stage_error, role_name, err_msg)
+
         try:
-            async with asyncio.timeout(self.timeout):
-                for role_name in order:
-                    logger.info(f"[Orchestrator:{pipeline_id}] ── Role: {role_name} ──")
-                    await self._fire_hook(self._on_stage_start, role_name)
-
-                    role = self._build_role(role_name)
-                    role_input = self._build_role_input(goal, role_name, results)
-                    t0 = time.monotonic()
-
-                    try:
-                        output = await role.run(role_input)
-                        results[role_name] = output
-                        elapsed = time.monotonic() - t0
-
-                        logger.info(
-                            f"[Orchestrator:{pipeline_id}] "
-                            f"{role_name} ✓ ({len(output)} chars, {elapsed:.1f}s)"
-                        )
-                        await self.db.log_message(session_id, role_name, output[:2048])
-
-                        pipeline_result.stages.append(PipelineStageResult(
-                            role_name=role_name,
-                            status="completed",
-                            output=output,
-                            duration_s=round(elapsed, 2),
-                        ))
-                        await self._fire_hook(self._on_stage_complete, role_name, output)
-
-                    except Exception as e:
-                        elapsed = time.monotonic() - t0
-                        err_msg = f"ERROR: {e}"
-                        logger.error(f"[Orchestrator:{pipeline_id}] {role_name} ✗ {err_msg}")
-                        results[role_name] = err_msg
-                        await self.db.log_message(session_id, role_name, err_msg)
-
-                        pipeline_result.stages.append(PipelineStageResult(
-                            role_name=role_name,
-                            status="error",
-                            output=err_msg,
-                            duration_s=round(elapsed, 2),
-                        ))
-                        await self._fire_hook(self._on_stage_error, role_name, err_msg)
-
+            if hasattr(asyncio, "timeout"):
+                async with asyncio.timeout(self.timeout):
+                    await _run_stages()
+            else:
+                await asyncio.wait_for(_run_stages(), timeout=self.timeout)
         except asyncio.TimeoutError:
             logger.warning(f"[Orchestrator:{pipeline_id}] Global timeout reached.")
             pipeline_result.timed_out = True

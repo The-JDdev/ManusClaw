@@ -23,7 +23,7 @@ import time
 from typing import Any, Optional
 
 from app.config import Config
-from app.exceptions import TokenLimitExceeded
+from app.exceptions import RateLimitError, TokenLimitExceeded
 from app.logger import logger
 from app.schema import Message, Role, ToolCall, Function
 
@@ -261,10 +261,6 @@ class GoogleClient:
                 }
             }]
         }
-
-
-class RateLimitError(Exception):
-    pass
 
 
 class LLM:

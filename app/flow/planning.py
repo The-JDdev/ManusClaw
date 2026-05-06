@@ -98,6 +98,108 @@ class PlanningFlow:
     # Core loop
     # ──────────────────────────────────────────────────────────────────────────
 
+    async def _run_flow_body(self, plan: Plan, flow: FlowResult, flow_id: str) -> None:
+        step_idx = 0
+        while step_idx < len(plan.steps):
+            step = plan.steps[step_idx]
+
+            if step.status == StepStatus.COMPLETED:
+                step_idx += 1
+                continue
+
+            logger.info(
+                f"[PlanningFlow:{flow_id}] "
+                f"Step {step.id + 1}/{len(plan.steps)}: {step.description}"
+            )
+            step.status = StepStatus.IN_PROGRESS
+
+            agent      = self._select_agent(step)
+            result     = None
+            success    = False
+            attempts   = 1
+
+            # ── First attempt ──────────────────────────────────────────
+            try:
+                result = await agent.run(step.description)
+                step.status = StepStatus.COMPLETED
+                success = True
+            except Exception as e:
+                logger.warning(
+                    f"[PlanningFlow:{flow_id}] "
+                    f"Step {step.id + 1} failed (attempt 1): {e}"
+                )
+
+            # ── Retry with a fresh agent ───────────────────────────────
+            if not success:
+                attempts = 2
+                logger.info(
+                    f"[PlanningFlow:{flow_id}] "
+                    f"Retrying step {step.id + 1} with safe agent…"
+                )
+                retry_agent = self._select_agent(step, prefer_safe=True)
+                try:
+                    result = await retry_agent.run(
+                        f"RETRY: The previous attempt at this step failed. "
+                        f"Try a completely different approach.\n\nStep: {step.description}"
+                    )
+                    step.status = StepStatus.COMPLETED
+                    success = True
+                except Exception as e2:
+                    logger.error(
+                        f"[PlanningFlow:{flow_id}] "
+                        f"Step {step.id + 1} blocked after retry: {e2}"
+                    )
+                    step.status = StepStatus.BLOCKED
+
+            # ── Score the result ───────────────────────────────────────
+            score = 0.0
+            if success and result:
+                score = self._score_result(result, step.success_criteria or "")
+                step.success_score = score
+                logger.info(
+                    f"[PlanningFlow:{flow_id}] "
+                    f"Step {step.id + 1} score: {score:.2f} "
+                    f"(criteria: {step.success_criteria or 'none'})"
+                )
+
+            # ── Record in flow result ──────────────────────────────────
+            flow.steps.append(FlowStepResult(
+                step_id      = step.id,
+                description  = step.description,
+                status       = step.status,
+                output       = (result or "")[:400],
+                attempts     = attempts,
+                success_score = score,
+            ))
+
+            # ── Replan if blocked OR score too low ─────────────────────
+            should_replan = (
+                step.status == StepStatus.BLOCKED
+                or (success and score < self._threshold and step.success_criteria)
+            )
+            remaining = plan.steps[step_idx + 1:]
+            if should_replan and remaining:
+                cause = (
+                    "step blocked"
+                    if step.status == StepStatus.BLOCKED
+                    else f"low success score ({score:.2f})"
+                )
+                logger.info(
+                    f"[PlanningFlow:{flow_id}] Replanning remaining steps "
+                    f"(cause: {cause})…"
+                )
+                completed_ctx = "\n".join(
+                    f"✓ {s.description}"
+                    for s in plan.steps[:step_idx]
+                    if s.status == StepStatus.COMPLETED
+                )
+                new_plan = await self._replan(
+                    flow.goal, completed_ctx, remaining, cause
+                )
+                plan.steps = plan.steps[:step_idx + 1] + new_plan.steps
+
+            step_idx += 1
+
     async def _run_flow(self, goal: str) -> FlowResult:
         flow_id = str(uuid.uuid4())[:8]
         logger.info(f"[PlanningFlow:{flow_id}] ▶ Goal: {goal[:120]}")
@@ -108,106 +210,14 @@ class PlanningFlow:
         timed_out = False
 
         try:
-            async with asyncio.timeout(self._timeout):
-                step_idx = 0
-                while step_idx < len(plan.steps):
-                    step = plan.steps[step_idx]
-
-                    if step.status == StepStatus.COMPLETED:
-                        step_idx += 1
-                        continue
-
-                    logger.info(
-                        f"[PlanningFlow:{flow_id}] "
-                        f"Step {step.id + 1}/{len(plan.steps)}: {step.description}"
-                    )
-                    step.status = StepStatus.IN_PROGRESS
-
-                    agent      = self._select_agent(step)
-                    result     = None
-                    success    = False
-                    attempts   = 1
-
-                    # ── First attempt ──────────────────────────────────────────
-                    try:
-                        result = await agent.run(step.description)
-                        step.status = StepStatus.COMPLETED
-                        success = True
-                    except Exception as e:
-                        logger.warning(
-                            f"[PlanningFlow:{flow_id}] "
-                            f"Step {step.id + 1} failed (attempt 1): {e}"
-                        )
-
-                    # ── Retry with a fresh agent ───────────────────────────────
-                    if not success:
-                        attempts = 2
-                        logger.info(
-                            f"[PlanningFlow:{flow_id}] "
-                            f"Retrying step {step.id + 1} with safe agent…"
-                        )
-                        retry_agent = self._select_agent(step, prefer_safe=True)
-                        try:
-                            result = await retry_agent.run(
-                                f"RETRY: The previous attempt at this step failed. "
-                                f"Try a completely different approach.\n\nStep: {step.description}"
-                            )
-                            step.status = StepStatus.COMPLETED
-                            success = True
-                        except Exception as e2:
-                            logger.error(
-                                f"[PlanningFlow:{flow_id}] "
-                                f"Step {step.id + 1} blocked after retry: {e2}"
-                            )
-                            step.status = StepStatus.BLOCKED
-
-                    # ── Score the result ───────────────────────────────────────
-                    score = 0.0
-                    if success and result:
-                        score = self._score_result(result, step.success_criteria or "")
-                        step.success_score = score
-                        logger.info(
-                            f"[PlanningFlow:{flow_id}] "
-                            f"Step {step.id + 1} score: {score:.2f} "
-                            f"(criteria: {step.success_criteria or 'none'})"
-                        )
-
-                    # ── Record in flow result ──────────────────────────────────
-                    flow.steps.append(FlowStepResult(
-                        step_id      = step.id,
-                        description  = step.description,
-                        status       = step.status,
-                        output       = (result or "")[:400],
-                        attempts     = attempts,
-                        success_score = score,
-                    ))
-
-                    # ── Replan if blocked OR score too low ─────────────────────
-                    should_replan = (
-                        step.status == StepStatus.BLOCKED
-                        or (success and score < self._threshold and step.success_criteria)
-                    )
-                    remaining = plan.steps[step_idx + 1:]
-                    if should_replan and remaining:
-                        cause = (
-                            "step blocked"
-                            if step.status == StepStatus.BLOCKED
-                            else f"low success score ({score:.2f})"
-                        )
-                        logger.info(
-                            f"[PlanningFlow:{flow_id}] Replanning remaining steps "
-                            f"(cause: {cause})…"
-                        )
-                        completed_ctx = "\n".join(
-                            f"✓ {s.description}"
-                            for s in plan.steps[:step_idx]
-                            if s.status == StepStatus.COMPLETED
-                        )
-                        new_plan = await self._replan(goal, completed_ctx, remaining, cause)
-                        plan.steps = plan.steps[:step_idx + 1] + new_plan.steps
-
-                    step_idx += 1
-
+            if hasattr(asyncio, "timeout"):
+                async with asyncio.timeout(self._timeout):
+                    await self._run_flow_body(plan, flow, flow_id)
+            else:
+                await asyncio.wait_for(
+                    self._run_flow_body(plan, flow, flow_id),
+                    timeout=self._timeout,
+                )
         except asyncio.TimeoutError:
             logger.warning(f"[PlanningFlow:{flow_id}] Global timeout reached.")
             timed_out = True

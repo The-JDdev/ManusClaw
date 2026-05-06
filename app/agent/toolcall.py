@@ -201,6 +201,12 @@ tool or different arguments — DO NOT repeat the same failing call.
                         await asyncio.sleep(min(wait, TOOL_RETRY_MAX))
                         wait *= 2 + random.uniform(0, 0.5)
                         continue
+                    else:
+                        logger.warning(
+                            f"[{self.name}] LLM self-correction did not yield a tool call. "
+                            f"Returning the original error for agent reconsideration."
+                        )
+                        return result
 
                 return result
 
@@ -296,3 +302,4 @@ tool or different arguments — DO NOT repeat the same failing call.
 
     async def cleanup(self) -> None:
         await self.tools.cleanup_all()
+        await super().cleanup()

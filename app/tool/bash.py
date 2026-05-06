@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-"""
+r"""
 Shell — persistent async shell session, cross-platform.
 
 Platforms:

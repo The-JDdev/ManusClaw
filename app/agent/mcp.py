@@ -30,6 +30,7 @@ class MCPAgent(ToolCallAgent):
     async def _setup_mcp(self) -> None:
         cfg = Config.get()
         servers = cfg.mcp_servers
+        added_any = False
 
         if self._server_url:
             client = MCPClient(
@@ -43,6 +44,7 @@ class MCPAgent(ToolCallAgent):
                 self._mcp_clients.append(client)
                 for tool in remote_tools:
                     self.tools.add(tool)
+                added_any = True
                 logger.info(f"[mcp] Loaded {len(remote_tools)} tools from remote server.")
             except Exception as e:
                 logger.warning(f"[mcp] Could not connect to remote server: {e}")
@@ -60,8 +62,13 @@ class MCPAgent(ToolCallAgent):
                 self._mcp_clients.append(client)
                 for tool in srv_tools:
                     self.tools.add(tool)
+                added_any = True
             except Exception as e:
                 logger.warning(f"[mcp] Could not connect to server '{srv.name}': {e}")
+
+        if added_any:
+            from app.tool.selector import ToolSelector
+            self._selector = ToolSelector(tool_names=list(self.tools._tools.keys()))
 
     async def run(self, prompt: str) -> str:
         await self._setup_mcp()

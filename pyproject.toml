@@ -1,6 +1,6 @@
 [build-system]
 requires      = ["setuptools>=68", "wheel"]
-build-backend = "setuptools.backends.legacy:build"
+build-backend = "setuptools.build_meta"
 
 [project]
 name        = "manusclaw"
@@ -37,8 +37,6 @@ dependencies = [
   "python-dotenv>=1.0",
   # TOML parsing (stdlib tomllib on 3.11+)
   "tomli>=2.0; python_version < '3.11'",
-  # Async file I/O
-  "aiofiles>=23.0",
 ]
 
 [project.optional-dependencies]

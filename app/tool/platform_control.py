@@ -230,10 +230,24 @@ class PlatformControlTool(BaseTool):
     params: Optional[dict] = Field(None, description="Query params")
     body: Optional[Any] = Field(None, description="JSON body")
 
-    async def execute(self) -> ToolResult:
+    async def execute(self, **kwargs: Any) -> ToolResult:
+        """
+        Execute a platform control operation.
+        Accepts: platform, credentials, method, path, params, body
+        """
+        platform = kwargs.get("platform")
+        credentials = kwargs.get("credentials", {})
+        method = kwargs.get("method", "GET")
+        path = kwargs.get("path", "")
+        params = kwargs.get("params")
+        body = kwargs.get("body")
+
+        if not platform:
+            return ToolResult(output="", error="platform is required")
+
         try:
-            adapter = _build_platform(self.platform, self.credentials)
-            result = adapter.call(self.method, self.path, self.params, self.body)
+            adapter = _build_platform(platform, credentials)
+            result = adapter.call(method, path, params, body)
             return ToolResult(
                 output=json.dumps(result, indent=2, default=str),
                 error=None,
