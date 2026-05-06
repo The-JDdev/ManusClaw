@@ -105,10 +105,10 @@ class Memory(BaseModel):
     def _trim(self) -> None:
         if len(self.messages) <= self.max_messages:
             return
-        system  = [m for m in self.messages if m.role == Role.SYSTEM]
-        rest    = [m for m in self.messages if m.role != Role.SYSTEM]
-        keep    = max(self.max_messages - len(system), 10)
-        self.messages = system + rest[-keep:]
+        system = [m for m in self.messages if m.role == Role.SYSTEM]
+        rest = [m for m in self.messages if m.role != Role.SYSTEM]
+        keep = max(self.max_messages - len(system), 0)
+        self.messages = system + rest[-keep:] if keep else system
 
     def to_list(self) -> list[dict[str, Any]]:
         return [m.to_dict() for m in self.messages]
