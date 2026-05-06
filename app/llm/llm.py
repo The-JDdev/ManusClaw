@@ -28,18 +28,10 @@ from app.logger import logger
 from app.schema import Message, Role, ToolCall, Function
 
 
-# ---------------------------------------------------------------------------
-# Retry constants
-# ---------------------------------------------------------------------------
-
 MAX_RETRIES      = 8
 RETRY_BASE_WAIT  = 1.0
 RETRY_MAX_WAIT   = 60.0
 
-
-# ---------------------------------------------------------------------------
-# Helper: build a Message from an OpenAI-style response dict
-# ---------------------------------------------------------------------------
 
 def _msg_from_openai(choice: dict) -> Message:
     msg = choice.get("message", {})
@@ -60,21 +52,11 @@ def _msg_from_openai(choice: dict) -> Message:
     return Message(role=role, content=content, tool_calls=tool_calls or None)
 
 
-# ---------------------------------------------------------------------------
-# MockLLM — zero credentials, always works
-# ---------------------------------------------------------------------------
-
 class MockLLM:
-    """
-    Two-step mock: step 1 → python_execute, step 2 → terminate.
-    Lets the full PAORR pipeline run without any real LLM.
-    """
-
     def __init__(self) -> None:
         self._call_count = 0
 
     async def chat(self, messages: list, tools: Optional[list] = None) -> dict:
-        """OpenAI-compatible chat method used by the universal router."""
         self._call_count += 1
         if self._call_count == 1:
             return {"choices": [{"message": {
@@ -135,16 +117,7 @@ class MockLLM:
         )
 
 
-# ---------------------------------------------------------------------------
-# Universal OpenAI-compatible client (Mode 2 — agnostic)
-# ---------------------------------------------------------------------------
-
 class UniversalClient:
-    """
-    Sends plain OpenAI-compatible HTTP requests.
-    Works with OpenRouter, Ollama, LMStudio, vLLM, Groq, Together, Perplexity, etc.
-    """
-
     def __init__(self, base_url: str, api_key: str, model: str, **kwargs) -> None:
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
@@ -186,10 +159,6 @@ class UniversalClient:
         return await self._post(payload)
 
 
-# ---------------------------------------------------------------------------
-# Official provider clients (Mode 1)
-# ---------------------------------------------------------------------------
-
 class OpenAIClient:
     def __init__(self, cfg) -> None:
         from openai import AsyncOpenAI
@@ -220,7 +189,6 @@ class AnthropicClient:
         self.max_tokens = cfg.max_tokens
 
     async def chat(self, messages: list[dict], tools: Optional[list[dict]] = None) -> dict:
-        # Convert to Anthropic format
         system = next((m["content"] for m in messages if m["role"] == "system"), None)
         conv = [m for m in messages if m["role"] != "system"]
 
@@ -242,7 +210,6 @@ class AnthropicClient:
             ]
 
         resp = await self._c.messages.create(**kwargs)
-        # Normalise to OpenAI shape
         content = ""
         tool_calls = []
         for block in resp.content:
@@ -279,7 +246,6 @@ class GoogleClient:
 
     async def chat(self, messages: list[dict], tools: Optional[list[dict]] = None) -> dict:
         import google.generativeai as genai
-        import json
         model = genai.GenerativeModel(self._model_name)
         prompt = "\n".join(
             f"{m['role'].upper()}: {m.get('content') or ''}"
@@ -297,45 +263,23 @@ class GoogleClient:
         }
 
 
-# ---------------------------------------------------------------------------
-# Rate-limit sentinel
-# ---------------------------------------------------------------------------
-
 class RateLimitError(Exception):
     pass
 
 
-# ---------------------------------------------------------------------------
-# LLM — top-level router
-# ---------------------------------------------------------------------------
-
 class LLM:
-    """
-    Routes to the correct backend based on config:
-
-      provider = "openai"    → OpenAIClient (official SDK)
-      provider = "anthropic" → AnthropicClient (official SDK)
-      provider = "google"    → GoogleClient (official SDK)
-      provider = "mock"      → MockLLM (zero credentials)
-      base_url is set        → UniversalClient (agnostic OpenAI-compat)
-      (anything else)        → UniversalClient with base_url
-    """
-
     def __init__(self) -> None:
         cfg = Config.get()
         self._backend = self._build_backend(cfg)
+        self._max_retries = max(1, int(cfg.llm.max_retries or MAX_RETRIES))
 
     def _build_backend(self, cfg):
         provider = (cfg.llm.provider or "").lower().strip()
 
-        # --- Mock ---
         if provider == "mock":
             logger.info("Using MockLLM (no credentials required)")
             return MockLLM()
 
-        # --- Universal / Agnostic mode ---
-        # Triggered when base_url is set without a recognised provider,
-        # OR when provider is explicitly "universal" / "openrouter" / "ollama" / "openai-compat"
         universal_triggers = {"universal", "openrouter", "ollama", "lmstudio", "openai-compat", "groq", "together", "perplexity", "agentrouter", ""}
         if cfg.llm.base_url and (not provider or provider in universal_triggers):
             logger.info(f"Universal/Agnostic LLM mode — base_url={cfg.llm.base_url} model={cfg.llm.model}")
@@ -348,7 +292,6 @@ class LLM:
                 extra_headers=cfg.llm.extra_headers or {},
             )
 
-        # --- Official providers ---
         if provider == "openai":
             logger.info(f"Official provider: OpenAI (model={cfg.llm.model})")
             return OpenAIClient(cfg.llm)
@@ -359,7 +302,6 @@ class LLM:
             logger.info(f"Official provider: Google/Gemini (model={cfg.llm.model})")
             return GoogleClient(cfg.llm)
 
-        # --- Fallback: treat any unknown provider + base_url as universal ---
         if cfg.llm.base_url:
             logger.info(f"Unknown provider '{provider}', falling back to Universal mode")
             return UniversalClient(
@@ -370,13 +312,8 @@ class LLM:
                 temperature=cfg.llm.temperature,
             )
 
-        # --- Last resort: MockLLM ---
         logger.warning(f"No valid LLM config found (provider='{provider}'). Using MockLLM.")
         return MockLLM()
-
-    # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
 
     async def ask(self, messages: list[Message], **kwargs) -> Message:
         raw = [m.to_dict() for m in messages]
@@ -390,7 +327,7 @@ class LLM:
 
     async def _call_with_retry(self, messages: list[dict], tools: Optional[list[dict]], **kwargs) -> dict:
         wait = RETRY_BASE_WAIT
-        for attempt in range(1, MAX_RETRIES + 1):
+        for attempt in range(1, self._max_retries + 1):
             try:
                 return await self._backend.chat(messages, tools=tools)
             except TokenLimitExceeded:
@@ -400,9 +337,9 @@ class LLM:
                 await asyncio.sleep(wait)
                 wait = min(wait * 2 + random.uniform(0, 1), RETRY_MAX_WAIT)
             except Exception as e:
-                if attempt == MAX_RETRIES:
+                if attempt == self._max_retries:
                     raise
-                logger.warning(f"[LLM] Error (attempt {attempt}/{MAX_RETRIES}): {e}. Retrying in {wait:.1f}s...")
+                logger.warning(f"[LLM] Error (attempt {attempt}/{self._max_retries}): {e}. Retrying in {wait:.1f}s...")
                 await asyncio.sleep(wait)
                 wait = min(wait * 2 + random.uniform(0, 1), RETRY_MAX_WAIT)
 
