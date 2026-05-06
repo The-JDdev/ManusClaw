@@ -58,10 +58,10 @@ If it failed or returned unexpected output, analyse why and choose a different
 tool or different arguments — DO NOT repeat the same failing call.
 """
 
-    def __init__(self, tools: Optional[ToolCollection] = None, mode=None) -> None:
+    def __init__(self, tools: Optional[ToolCollection] = None, mode=None, session_id: Optional[str] = None) -> None:
         from app.permissions.gate import AgentMode
         mode = mode or AgentMode.BUILD
-        super().__init__(mode=mode)
+        super().__init__(mode=mode, session_id=session_id)
         self.tools: ToolCollection = tools or ToolCollection(Terminate())
         if self.tools.get("terminate") is None:
             self.tools.add(Terminate())
@@ -141,7 +141,6 @@ tool or different arguments — DO NOT repeat the same failing call.
                     f"{name}({self._fmt_args(args)})"
                 )
 
-                # Permission gate — must pass before execution
                 allowed = await self.check_permission(name, args)
                 if not allowed:
                     denied_result = ToolResult(error=f"Permission denied for tool '{name}'.")
