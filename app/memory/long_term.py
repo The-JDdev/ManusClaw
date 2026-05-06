@@ -68,7 +68,7 @@ class LongTermMemory:
 
     def _connect(self) -> sqlite3.Connection:
         if self._conn is None:
-            self._conn = sqlite3.connect(str(self._db_path))
+            self._conn = sqlite3.connect(str(self._db_path), check_same_thread=False)
             self._conn.executescript(_SCHEMA)
             self._conn.execute(_TRIGGER_AI)
             self._conn.execute(_TRIGGER_AD)
