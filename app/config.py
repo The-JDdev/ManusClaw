@@ -18,8 +18,6 @@ Validation is enforced via Pydantic model_validator. Invalid configs
 raise ConfigError immediately at startup — no silent bad state.
 """
 
-from __future__ import annotations
-
 import os
 import threading
 from enum import Enum
@@ -66,11 +64,6 @@ class LLMConfig(BaseModel):
 
     @model_validator(mode="after")
     def _coerce_provider_to_mock_when_no_key(self) -> "LLMConfig":
-        """
-        If a real provider is declared but no API key is available,
-        fall back to mock so the system always starts cleanly.
-        A warning is emitted at runtime when this occurs.
-        """
         mock_safe = {"mock", "ollama", "lmstudio", "openai-compat", "universal", ""}
         if self.provider not in mock_safe and not self.api_key and not self.base_url:
             object.__setattr__(self, "provider", "mock")
@@ -167,19 +160,12 @@ class Config:
 
     @classmethod
     def reset(cls) -> None:
-        """Clear the singleton. Primarily for test isolation."""
         with cls._lock:
             cls._instance = None
 
-    # ------------------------------------------------------------------
-    # Loader
-    # ------------------------------------------------------------------
-
     def _load(self, path: str) -> AppConfig:
-        # Step 1 — Load .env file (lowest priority, doesn't override existing env vars)
         self._load_dotenv()
 
-        # Step 2 — Load config.toml
         raw: dict[str, Any] = {}
         p = Path(path)
         if p.exists() and tomllib is not None:
@@ -189,14 +175,12 @@ class Config:
             except Exception as e:
                 raise ConfigError(f"Failed to parse {path}: {e}") from e
 
-        # Step 3 — Apply APP_ENV
         env_str = os.getenv("APP_ENV", raw.get("env", "dev")).lower()
         try:
             app_env = AppEnv(env_str)
         except ValueError:
             app_env = AppEnv.DEV
 
-        # Step 4 — Parse model with validation
         try:
             cfg = AppConfig.model_validate(raw) if raw else AppConfig()
         except Exception as e:
@@ -204,7 +188,6 @@ class Config:
 
         cfg.env = app_env
 
-        # Step 5 — Override secrets from environment variables
         if not cfg.llm.api_key:
             cfg.llm.api_key = (
                 os.getenv("OPENAI_API_KEY")
@@ -214,13 +197,11 @@ class Config:
         if not cfg.llm.base_url:
             cfg.llm.base_url = os.getenv("LLM_BASE_URL")
 
-        # Step 6 — Test env overrides (fast, safe defaults)
         if app_env == AppEnv.TEST:
             cfg.llm.provider = "mock"
             cfg.max_steps = 5
             cfg.runflow.timeout = 60
 
-        # Step 7 — Final safety: if provider needs a key but none found, fall back to mock
         safe_providers = {"mock", "ollama", "lmstudio", "universal", "openai-compat", ""}
         if cfg.llm.provider not in safe_providers and not cfg.llm.api_key and not cfg.llm.base_url:
             import warnings
@@ -235,16 +216,11 @@ class Config:
 
     @staticmethod
     def _load_dotenv() -> None:
-        """Load .env file if python-dotenv is installed. Silent no-op otherwise."""
         try:
             from dotenv import load_dotenv
-            load_dotenv(override=False)  # env vars already set take precedence
+            load_dotenv(override=False)
         except ImportError:
             pass
-
-    # ------------------------------------------------------------------
-    # Property accessors — typed convenience attributes
-    # ------------------------------------------------------------------
 
     @property
     def env(self) -> AppEnv:
