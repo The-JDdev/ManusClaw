@@ -37,10 +37,6 @@ app = FastAPI(
     version="3.0.0",
 )
 
-# ---------------------------------------------------------------------------
-# CORS — explicitly configured; allow_credentials only when origins are known
-# ---------------------------------------------------------------------------
-
 _raw_origins = os.getenv("MANUSCLAW_ALLOWED_ORIGINS", "")
 _allowed_origins: list[str] = (
     [o.strip() for o in _raw_origins.split(",") if o.strip()]
@@ -65,10 +61,6 @@ else:
         allow_headers=["*"],
     )
 
-# ---------------------------------------------------------------------------
-# API Key authentication — enabled only when MANUSCLAW_API_KEY is set
-# ---------------------------------------------------------------------------
-
 _API_KEY = os.getenv("MANUSCLAW_API_KEY", "")
 _api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
@@ -79,10 +71,6 @@ async def require_api_key(key: Optional[str] = Depends(_api_key_header)) -> None
     if key != _API_KEY:
         raise HTTPException(status_code=401, detail="Invalid or missing API key.")
 
-
-# ---------------------------------------------------------------------------
-# WebSocket manager
-# ---------------------------------------------------------------------------
 
 class ConnectionManager:
     def __init__(self):
@@ -115,22 +103,20 @@ manager = ConnectionManager()
 db = SessionDB()
 
 
-# ---------------------------------------------------------------------------
-# Streaming agent wrapper — emits WebSocket events + uses unified session_id
-# ---------------------------------------------------------------------------
-
 class StreamingManus:
     """Wraps Manus agent with WebSocket event emission and unified session tracking."""
 
-    def __init__(self, session_id: str, mode: AgentMode = AgentMode.BUILD) -> None:
+    def __init__(self, session_id: str, mode: AgentMode = AgentMode.BUILD, max_steps: Optional[int] = None) -> None:
         self.session_id = session_id
         self.mode = mode
+        self.max_steps = max_steps
 
     async def run(self, prompt: str) -> str:
         from app.agent.manus import Manus
 
-        # Inject the server-minted session_id so the agent doesn't create a new one
         agent = Manus(mode=self.mode, session_id=self.session_id)
+        if self.max_steps is not None:
+            agent._max_steps = self.max_steps
 
         original_step = agent.step
 
@@ -171,13 +157,10 @@ class StreamingManus:
             raise
 
 
-# ---------------------------------------------------------------------------
-# REST endpoints
-# ---------------------------------------------------------------------------
-
 class RunRequest(BaseModel):
     prompt: str
     mode: str = "build"
+    max_steps: int = 30
 
 
 class RunResponse(BaseModel):
@@ -198,15 +181,11 @@ async def root():
 
 @app.post("/run", response_model=RunResponse, dependencies=[Depends(require_api_key)])
 async def run_agent(req: RunRequest):
-    """
-    Fire-and-forget agent run. Returns session_id immediately.
-    Connect to /ws/<session_id> for live streaming.
-    """
     mode = AgentMode.PLAN if req.mode.lower() == "plan" else AgentMode.BUILD
     session_id = await db.create_session(req.prompt, mode=req.mode)
 
     async def _run():
-        streamer = StreamingManus(session_id=session_id, mode=mode)
+        streamer = StreamingManus(session_id=session_id, mode=mode, max_steps=req.max_steps)
         try:
             await streamer.run(req.prompt)
         except Exception as e:
@@ -218,12 +197,12 @@ async def run_agent(req: RunRequest):
 
 @app.post("/run/sync", response_model=RunResponse, dependencies=[Depends(require_api_key)])
 async def run_agent_sync(req: RunRequest):
-    """Synchronous run — waits for completion (no streaming)."""
     from app.agent.manus import Manus
     mode = AgentMode.PLAN if req.mode.lower() == "plan" else AgentMode.BUILD
     session_id = await db.create_session(req.prompt, mode=req.mode)
     try:
         agent = Manus(mode=mode, session_id=session_id)
+        agent._max_steps = req.max_steps
         output = await agent.run(req.prompt)
         await db.close_session(session_id, state="finished")
         return RunResponse(session_id=session_id, status="finished", output=output)
@@ -263,13 +242,8 @@ async def list_tools():
     return {"tools": [{"name": s["function"]["name"], "description": s["function"]["description"]} for s in schemas]}
 
 
-# ---------------------------------------------------------------------------
-# WebSocket endpoint
-# ---------------------------------------------------------------------------
-
 @app.websocket("/ws/{session_id}")
 async def websocket_endpoint(websocket: WebSocket, session_id: str):
-    # API key check for WebSocket via query param or header
     if _API_KEY:
         token = (
             websocket.query_params.get("api_key")
@@ -309,7 +283,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
 
             await websocket.send_text(json.dumps({"type": "agent_start", "prompt": prompt[:200]}))
 
-            streamer = StreamingManus(session_id=session_id, mode=mode)
+            streamer = StreamingManus(session_id=session_id, mode=mode, max_steps=msg.get("max_steps"))
             try:
                 await streamer.run(prompt)
             except Exception as e:
@@ -320,10 +294,6 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
         logger.info(f"[Server] WebSocket disconnected: {session_id}")
 
 
-# ---------------------------------------------------------------------------
-# Multi-agent endpoint
-# ---------------------------------------------------------------------------
-
 class MultiAgentRequest(BaseModel):
     goal: str
     mode: str = "build"
@@ -332,17 +302,12 @@ class MultiAgentRequest(BaseModel):
 
 @app.post("/multi-agent", dependencies=[Depends(require_api_key)])
 async def run_multi_agent(req: MultiAgentRequest):
-    """Run the full ProductManager → Architect → Engineer → QA pipeline."""
     from app.agent.orchestrator import MultiAgentOrchestrator
     mode = AgentMode.PLAN if req.mode.lower() == "plan" else AgentMode.BUILD
     orchestrator = MultiAgentOrchestrator(mode=mode)
     result = await orchestrator.run(req.goal)
     return {"result": result}
 
-
-# ---------------------------------------------------------------------------
-# Packaged entry point (used by pyproject.toml script)
-# ---------------------------------------------------------------------------
 
 def serve() -> None:
     import argparse
