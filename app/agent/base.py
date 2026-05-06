@@ -80,8 +80,6 @@ class BaseAgent(ABC):
             original_goal=prompt,
         )
 
-        # Set structured logging context for the full run — all log calls
-        # within this coroutine (and its children) will carry these fields.
         log_tokens = set_log_context(
             trace_id=self._trace_id,
             agent_name=self.name,
@@ -119,10 +117,7 @@ class BaseAgent(ABC):
         try:
             while self.state == AgentState.RUNNING and self._step_count < self._max_steps:
                 self._step_count += 1
-
-                # Update step counter in logging context
                 set_log_context(step_id=self._step_count)
-
                 logger.info(f"── Step {self._step_count}/{self._max_steps} ──")
 
                 if self._step_count > 1 and self._step_count % 5 == 0 and self._task_history:
