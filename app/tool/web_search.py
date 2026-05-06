@@ -58,9 +58,10 @@ class WebSearch(BaseTool):
         "required": ["query"],
     }
 
-    async def execute(self, query: str, max_results: int = 5, **_: Any) -> ToolResult:
+    async def execute(self, query: str, max_results: int | None = None, **_: Any) -> ToolResult:
         cfg = Config.get()
         engines = cfg.search.engines
+        effective_max_results = max_results if max_results is not None else cfg.search.max_results
 
         for engine in engines:
             wait = 0.0
@@ -71,9 +72,9 @@ class WebSearch(BaseTool):
                 results: list[dict] = []
                 try:
                     if engine == "duckduckgo":
-                        results = await _search_duckduckgo(query, max_results)
+                        results = await _search_duckduckgo(query, effective_max_results)
                     elif engine == "bing":
-                        results = await _search_bing(query, max_results)
+                        results = await _search_bing(query, effective_max_results)
                     else:
                         continue
                 except Exception:
