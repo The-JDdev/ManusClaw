@@ -51,29 +51,22 @@ For every action, think out loud: reason about WHY you are choosing this
 approach, WHAT you expect the result to be, and HOW you will verify success.
 """
 
-    MAX_REFLECT_RETRIES = 3  # Max retries per step when reflection says "not solved"
+    MAX_REFLECT_RETRIES = 3
 
-    def __init__(self, mode=None) -> None:
+    def __init__(self, mode=None, session_id: Optional[str] = None) -> None:
         from app.permissions.gate import AgentMode
-        super().__init__(mode=mode or AgentMode.BUILD)
+        super().__init__(mode=mode or AgentMode.BUILD, session_id=session_id)
         self.llm = LLM()
 
-    # ------------------------------------------------------------------
-    # PAORR core
-    # ------------------------------------------------------------------
-
     async def think(self) -> str:
-        """P — Generate a reasoned thought from the LLM."""
         response = await self.llm.ask(self.memory.messages)
         self.memory.add(response)
         return response.content or ""
 
     async def act(self, thought: str) -> Optional[str]:
-        """A — Default action: the thought itself. Subclasses override this."""
         return thought
 
     async def observe(self, result: Optional[str]) -> Observation:
-        """O — Wrap the action result into an Observation."""
         if self._task_history:
             step = self._task_history.last_step()
             if step is None:
@@ -88,7 +81,6 @@ approach, WHAT you expect the result to be, and HOW you will verify success.
         return obs
 
     async def reflect(self, goal: str, obs: Observation) -> Reflection:
-        """R — Ask the LLM to reflect on whether the observation solved the goal."""
         prompt = (
             f"Goal: {goal}\n\n"
             f"Observation:\n{obs.summary()}\n\n"
@@ -99,7 +91,6 @@ approach, WHAT you expect the result to be, and HOW you will verify success.
                 [Message.system(_REFLECT_SYSTEM), Message.user(prompt)]
             )
             raw = (response.content or "{}").strip()
-            # Strip markdown fences if present
             if raw.startswith("```"):
                 raw = raw.split("```")[1]
                 if raw.startswith("json"):
@@ -114,7 +105,6 @@ approach, WHAT you expect the result to be, and HOW you will verify success.
             )
         except Exception as e:
             logger.debug(f"[{self.name}] Reflection parse error: {e}")
-            # If reflection fails, assume success to avoid blocking
             return Reflection(
                 step_goal=goal,
                 observation_summary=obs.summary(),
@@ -122,12 +112,7 @@ approach, WHAT you expect the result to be, and HOW you will verify success.
                 reason=f"Reflection unavailable ({e}); assuming success.",
             )
 
-    # ------------------------------------------------------------------
-    # Step entry point
-    # ------------------------------------------------------------------
-
     async def step(self) -> Optional[str]:
-        """Full PAORR step."""
         if self._task_history:
             current_step = self._task_history.add_step(f"step {self._step_count}")
         else:
@@ -136,20 +121,15 @@ approach, WHAT you expect the result to be, and HOW you will verify success.
         goal = f"step {self._step_count}"
 
         for attempt in range(1, self.MAX_REFLECT_RETRIES + 1):
-            # PLAN / THINK
             thought = await self.think()
             logger.debug(f"[{self.name}] Thought: {thought[:160]}")
 
-            # ACT
             result = await self.act(thought)
-
-            # OBSERVE
             obs = await self.observe(result)
             if current_step:
                 obs.attempt = attempt
                 current_step.observations.append(obs)
 
-            # Simple termination check from thought content
             lower = (thought + (result or "")).lower()
             if any(kw in lower for kw in ["task complete", "task is complete", "all done", "finished"]):
                 self.state = AgentState.FINISHED
@@ -157,7 +137,6 @@ approach, WHAT you expect the result to be, and HOW you will verify success.
                     current_step.resolved = True
                 return result
 
-            # REFLECT — only if more retries remain
             if attempt < self.MAX_REFLECT_RETRIES:
                 reflection = await self.reflect(goal, obs)
                 if current_step:
@@ -167,9 +146,9 @@ approach, WHAT you expect the result to be, and HOW you will verify success.
                 if reflection.solved:
                     if current_step:
                         current_step.resolved = True
+                    self.state = AgentState.FINISHED
                     return result
 
-                # RETRY — inject reflection into memory so the LLM self-corrects
                 retry_msg = (
                     f"⚠ Reflection (attempt {attempt}/{self.MAX_REFLECT_RETRIES}):\n"
                     f"{reflection.to_prompt()}\n\n"
@@ -181,6 +160,8 @@ approach, WHAT you expect the result to be, and HOW you will verify success.
             else:
                 if current_step:
                     current_step.resolved = bool(result)
+                if result:
+                    self.state = AgentState.FINISHED
                 return result
 
         return None
