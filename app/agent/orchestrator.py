@@ -64,16 +64,6 @@ class MultiAgentOrchestrator:
     """
     Runs specialist roles in dependency order (topological sort via Kahn's algorithm).
     Each role receives the accumulated context from all its upstream predecessors.
-
-    Parameters
-    ----------
-    mode         : AgentMode      BUILD (default) or PLAN
-    pipeline     : list[str]      Role names in declaration order
-    deps         : dict           {role: [upstream_roles]}
-    timeout      : int            Global wall-clock timeout in seconds (default 7200)
-    on_stage_start    : async callable(role_name: str) → None
-    on_stage_complete : async callable(role_name: str, output: str) → None
-    on_stage_error    : async callable(role_name: str, error: str) → None
     """
 
     def __init__(
@@ -93,28 +83,15 @@ class MultiAgentOrchestrator:
         self.bus       = RoleMessageBus()
         self.db        = SessionDB()
         self.gate      = PermissionGate(mode=mode)
-
-        # Event hooks — fire-and-forget (non-blocking)
         self._on_stage_start    = on_stage_start
         self._on_stage_complete = on_stage_complete
         self._on_stage_error    = on_stage_error
 
-    # ──────────────────────────────────────────────────────────────────────────
-    # Public API
-    # ──────────────────────────────────────────────────────────────────────────
-
     async def run(self, goal: str) -> str:
-        """
-        Run the full pipeline. Returns a plain-text summary string.
-        (Backward-compatible with the existing server endpoint.)
-        """
         result = await self.run_pipeline(goal)
         return result.to_summary()
 
     async def run_pipeline(self, goal: str) -> PipelineResult:
-        """
-        Run the full pipeline. Returns a typed PipelineResult.
-        """
         import uuid
         pipeline_id = str(uuid.uuid4())[:8]
 
@@ -136,24 +113,19 @@ class MultiAgentOrchestrator:
             f"[Orchestrator:{pipeline_id}] Execution order: {' → '.join(order)}"
         )
 
-        pipeline_result = PipelineResult(
-            pipeline_id=pipeline_id,
-            goal=goal,
-        )
-        results:   dict[str, str] = {}
+        pipeline_result = PipelineResult(pipeline_id=pipeline_id, goal=goal)
+        results: dict[str, str] = {}
         t_pipeline = time.monotonic()
 
         try:
             async with asyncio.timeout(self.timeout):
                 for role_name in order:
-                    logger.info(
-                        f"[Orchestrator:{pipeline_id}] ── Role: {role_name} ──"
-                    )
+                    logger.info(f"[Orchestrator:{pipeline_id}] ── Role: {role_name} ──")
                     await self._fire_hook(self._on_stage_start, role_name)
 
-                    role       = self._build_role(role_name)
+                    role = self._build_role(role_name)
                     role_input = self._build_role_input(goal, role_name, results)
-                    t0         = time.monotonic()
+                    t0 = time.monotonic()
 
                     try:
                         output = await role.run(role_input)
@@ -167,27 +139,25 @@ class MultiAgentOrchestrator:
                         await self.db.log_message(session_id, role_name, output[:2048])
 
                         pipeline_result.stages.append(PipelineStageResult(
-                            role_name  = role_name,
-                            status     = "completed",
-                            output     = output,
-                            duration_s = round(elapsed, 2),
+                            role_name=role_name,
+                            status="completed",
+                            output=output,
+                            duration_s=round(elapsed, 2),
                         ))
                         await self._fire_hook(self._on_stage_complete, role_name, output)
 
                     except Exception as e:
                         elapsed = time.monotonic() - t0
                         err_msg = f"ERROR: {e}"
-                        logger.error(
-                            f"[Orchestrator:{pipeline_id}] {role_name} ✗ {err_msg}"
-                        )
+                        logger.error(f"[Orchestrator:{pipeline_id}] {role_name} ✗ {err_msg}")
                         results[role_name] = err_msg
                         await self.db.log_message(session_id, role_name, err_msg)
 
                         pipeline_result.stages.append(PipelineStageResult(
-                            role_name  = role_name,
-                            status     = "error",
-                            output     = err_msg,
-                            duration_s = round(elapsed, 2),
+                            role_name=role_name,
+                            status="error",
+                            output=err_msg,
+                            duration_s=round(elapsed, 2),
                         ))
                         await self._fire_hook(self._on_stage_error, role_name, err_msg)
 
@@ -195,13 +165,11 @@ class MultiAgentOrchestrator:
             logger.warning(f"[Orchestrator:{pipeline_id}] Global timeout reached.")
             pipeline_result.timed_out = True
 
-        # Derive overall verdict from QA stage
         pipeline_result.total_duration_s = round(time.monotonic() - t_pipeline, 2)
         pipeline_result.verdict = self._derive_verdict(results, pipeline_result.timed_out)
 
-        await self.db.close_session(
-            session_id, state="finished", step_count=len(order)
-        )
+        final_state = "timeout" if pipeline_result.timed_out else "finished"
+        await self.db.close_session(session_id, state=final_state, step_count=len(order))
 
         logger.info(
             f"[Orchestrator:{pipeline_id}] ■ Pipeline complete. "
@@ -210,14 +178,10 @@ class MultiAgentOrchestrator:
         )
         return pipeline_result
 
-    # ──────────────────────────────────────────────────────────────────────────
-    # Topological sort — Kahn's algorithm
-    # ──────────────────────────────────────────────────────────────────────────
-
     def _topological_sort(self) -> list[str]:
-        in_degree   = {r: len(self.deps.get(r, [])) for r in self.pipeline}
-        queue       = [r for r in self.pipeline if in_degree[r] == 0]
-        order:      list[str] = []
+        in_degree = {r: len(self.deps.get(r, [])) for r in self.pipeline}
+        queue = [r for r in self.pipeline if in_degree[r] == 0]
+        order: list[str] = []
         dependents: dict[str, list[str]] = {r: [] for r in self.pipeline}
 
         for r, d_list in self.deps.items():
@@ -241,10 +205,6 @@ class MultiAgentOrchestrator:
 
         return order
 
-    # ──────────────────────────────────────────────────────────────────────────
-    # Role factory
-    # ──────────────────────────────────────────────────────────────────────────
-
     def _build_role(self, role_name: str):
         role_map = {
             "product_manager": ProductManagerRole,
@@ -254,32 +214,18 @@ class MultiAgentOrchestrator:
         }
         cls = role_map.get(role_name)
         if cls is None:
-            raise OrchestratorError(
-                f"Unknown role: '{role_name}'",
-                pipeline=self.pipeline,
-            )
+            raise OrchestratorError(f"Unknown role: '{role_name}'", pipeline=self.pipeline)
         return cls(self.bus)
 
-    def _build_role_input(
-        self,
-        goal:       str,
-        role_name:  str,
-        results:    dict[str, str],
-    ) -> str:
+    def _build_role_input(self, goal: str, role_name: str, results: dict[str, str]) -> str:
         upstream = self.deps.get(role_name, [])
         if not upstream:
             return goal
         parts = [f"ORIGINAL GOAL:\n{goal}"]
         for up in upstream:
             if up in results:
-                parts.append(
-                    f"\n{up.upper().replace('_', ' ')} OUTPUT:\n{results[up][:3000]}"
-                )
+                parts.append(f"\n{up.upper().replace('_', ' ')} OUTPUT:\n{results[up][:3000]}")
         return "\n\n".join(parts)
-
-    # ──────────────────────────────────────────────────────────────────────────
-    # Verdict derivation
-    # ──────────────────────────────────────────────────────────────────────────
 
     @staticmethod
     def _derive_verdict(results: dict[str, str], timed_out: bool) -> str:
@@ -295,13 +241,8 @@ class MultiAgentOrchestrator:
             return "error"
         return "unknown"
 
-    # ──────────────────────────────────────────────────────────────────────────
-    # Event hook dispatcher
-    # ──────────────────────────────────────────────────────────────────────────
-
     @staticmethod
     async def _fire_hook(hook: Optional[Callable], *args: object) -> None:
-        """Fire an event hook without blocking the pipeline."""
         if hook is None:
             return
         try:
