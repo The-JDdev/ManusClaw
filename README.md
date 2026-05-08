@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/the-jddev-manusclaw-badge.png)](https://mseep.ai/app/the-jddev-manusclaw)
+
 <div align="center">
 
 ```
