@@ -461,10 +461,11 @@ class PipelineResult(BaseModel):
         ]
         for stage in self.stages:
             icon = "✓" if stage.status == "completed" else "✗"
-            lines.append(f"  {icon} {stage.role_name.replace('_', ' ').title():<20s} "
-                          f"[{stage.duration_s:.1f}s] — {stage.output[:100]}"
-                if len(stage.output) > 100:
-                    lines[-1] += "...")
+            output_preview = stage.output[:100] + "..." if len(stage.output) > 100 else stage.output[:100]
+            lines.append(
+                f"  {icon} {stage.role_name.replace('_', ' ').title():<20s} "
+                f"[{stage.duration_s:.1f}s] — {output_preview}"
+            )
         if self.timed_out:
             lines.append("\n  ⏱ Pipeline timed out before all stages completed.")
         lines.append("═══════════════════════════════════════════════════")
