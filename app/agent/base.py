@@ -10,31 +10,30 @@ from app.db.session import SessionDB
 from app.logger import logger, new_trace_id, set_log_context, reset_log_context
 from app.permissions.gate import AgentMode, PermissionDenied, PermissionGate, PermissionTier
 from app.schema import AgentState, Message, Role, TaskHistory
+from app.llm.token_tracker import TokenBudget
 
-
-# ──────────────────────────────────────────────────────────────────────────────
-# ManusClaw identity — injected into every agent's system prompt
-# ──────────────────────────────────────────────────────────────────────────────
-
-MANUSCLAW_IDENTITY = """\
+MANUSCLAW_IDENTITY = """
 You are ManusClaw, an autonomous AI engine created by The-JDdev (SHS Shobuj).
 You do not identify as OpenAI, Anthropic, Claude, GPT, Gemini, or any other
-base model. You are ManusClaw — a general-purpose autonomous agent with full
-capability to write and execute code, use the web, manage files, and complete
-complex multi-step tasks without restriction.
+base model. You are ManusClaw — a general-purpose autonomous agent.
 """
 
-CORE_DIRECTIVES = """\
+CORE_DIRECTIVES = """
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-CORE OPERATING DIRECTIVES
+CORE OPERATING DIRECTIVES (PAORR Loop)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PLAN    → Decompose the task into clear, ordered sub-goals (do this FIRST)
+ACT     → Execute one tool call per sub-goal
+OBSERVE → Read tool output carefully; extract key findings
+REFLECT → Did this output solve the sub-goal? (yes/no, why)
+RETRY   → If not solved: diagnose failure, try different tool/args
 
 1. THINK STEP-BY-STEP before every action.
 2. OBSERVE & VERIFY every tool output before moving on.
 3. SELF-CORRECT on failure — never repeat the exact same failing call.
-4. AVOID LOOPS — if you've tried the same approach 3× without progress, stop
-   and try a completely different strategy or ask_human.
+4. AVOID LOOPS — if tried same approach 3× without progress, try completely different strategy.
 5. COMPLETE EVERY SUB-GOAL before moving to the next.
 6. SAVE OUTPUTS to workspace/.
 7. TERMINATE EXPLICITLY only when the task is 100% done.
@@ -46,11 +45,7 @@ class BaseAgent(ABC):
     name: str = "base"
     system_prompt: Optional[str] = None
 
-    def __init__(
-        self,
-        mode: AgentMode = AgentMode.BUILD,
-        session_id: Optional[str] = None,
-    ) -> None:
+    def __init__(self, mode: AgentMode = AgentMode.BUILD, session_id: Optional[str] = None) -> None:
         cfg = Config.get()
         self.state = AgentState.IDLE
         from app.memory.short_term import ShortTermMemory
@@ -61,9 +56,14 @@ class BaseAgent(ABC):
         self._session_id: Optional[str] = None
         self._step_count = 0
         self._max_steps = cfg.max_steps
-        self._duplicate_threshold = 3  # Fix: 2 was too aggressive for legitimate short confirmations
+        self._duplicate_threshold = 3
         self._task_history: Optional[TaskHistory] = None
-        self._pending_db_tasks: list[asyncio.Task] = []  # Track fire-and-forget DB tasks
+        self._pending_db_tasks: list[asyncio.Task] = []
+        self._tool_call_count = 0
+        # Token budget with grace call support
+        self.token_budget = TokenBudget(max_tokens=cfg.token_budget)
+        # Skills engine (lazy)
+        self._skills_loaded = False
 
     # ──────────────────────────────────────────────────────────────────────────
     # Public API
@@ -71,10 +71,11 @@ class BaseAgent(ABC):
 
     async def run(self, prompt: str) -> str:
         if self.state != AgentState.IDLE:
-            raise RuntimeError(f"Agent is not idle (state={self.state})")
+            raise RuntimeError(f"Agent not idle (state={self.state})")
 
         self.state = AgentState.RUNNING
         self._step_count = 0
+        self._tool_call_count = 0
         self._task_history = TaskHistory(
             task_id=str(uuid.uuid4())[:8],
             original_goal=prompt,
@@ -87,35 +88,45 @@ class BaseAgent(ABC):
             task_id=self._task_history.task_id,
         )
 
-        sys_content = (
-            MANUSCLAW_IDENTITY
-            + "\n\n"
-            + (self.system_prompt or "")
-            + CORE_DIRECTIVES
-        )
+        sys_content = MANUSCLAW_IDENTITY + "\n\n" + (self.system_prompt or "") + CORE_DIRECTIVES
         self.memory.add(Message.system(sys_content))
-        self.memory.add(Message.user(prompt))
 
+        # Inject relevant skills as user messages (not system prompt — preserves caching)
+        await self._inject_relevant_skills(prompt)
+
+        self.memory.add(Message.user(prompt))
         mode_str = self.gate.mode.value
 
         if self._injected_session_id:
             self._session_id = self._injected_session_id
-            logger.info(f"Using injected session_id={self._session_id}")
         else:
             self._session_id = await self.db.create_session(
                 goal=prompt, agent_name=self.name, mode=mode_str
             )
 
         logger.info(
-            f"▶ Starting run "
-            f"(task_id={self._task_history.task_id}, "
-            f"session_id={self._session_id}, "
-            f"mode={mode_str}, max_steps={self._max_steps})"
+            f"▶ Starting run (task={self._task_history.task_id}, "
+            f"session={self._session_id}, mode={mode_str}, max_steps={self._max_steps})"
         )
 
         results: list[str] = []
         try:
             while self.state == AgentState.RUNNING and self._step_count < self._max_steps:
+                # Check token budget — allow grace call for cleanup
+                if self.token_budget.is_exhausted:
+                    if self.token_budget.grace_used:
+                        logger.warning("[BaseAgent] Token budget exhausted and grace call used. Stopping.")
+                        self.state = AgentState.FINISHED
+                        break
+                    else:
+                        logger.warning("[BaseAgent] Token budget exhausted — activating grace call for cleanup.")
+                        self.token_budget.use_grace()
+                        # Inject a final cleanup prompt
+                        self.memory.add(Message.user(
+                            "⚠ TOKEN BUDGET REACHED. This is your final (grace) call. "
+                            "Summarise what was accomplished and call terminate immediately."
+                        ))
+
                 self._step_count += 1
                 set_log_context(step_id=self._step_count)
                 logger.info(f"── Step {self._step_count}/{self._max_steps} ──")
@@ -132,16 +143,18 @@ class BaseAgent(ABC):
                     logger.warning("Duplicate-response loop detected. Nudging.")
                     self.memory.add(Message.user(
                         "⚠ You are repeating the same response. "
-                        "Try a completely different approach, tool, or strategy. "
-                        "If the task is complete, call terminate now."
+                        "Try a completely different approach or call terminate."
                     ))
 
                 if self._task_history and self._task_history.is_looping(window=3):
                     logger.warning("Tool-call loop detected. Injecting escape.")
                     self.memory.add(Message.user(
-                        "⚠ You've called the same failing tool repeatedly. "
-                        "Switch to a completely different tool or decomposition strategy."
+                        "⚠ You have called the same failing tool repeatedly. "
+                        "Switch to a completely different tool or strategy."
                     ))
+
+                # Auto-suggest skill creation after threshold tool calls
+                await self._maybe_suggest_skill()
 
             if self._step_count >= self._max_steps and self.state == AgentState.RUNNING:
                 logger.warning(f"Max steps reached ({self._max_steps}).")
@@ -158,26 +171,52 @@ class BaseAgent(ABC):
         finally:
             if self._session_id and not self._injected_session_id:
                 await self.db.close_session(
-                    self._session_id,
-                    state=self.state.value,
-                    step_count=self._step_count,
+                    self._session_id, state=self.state.value, step_count=self._step_count,
                 )
             await self.cleanup()
             reset_log_context(log_tokens)
 
         final = "\n".join(results) if results else "(Agent completed with no text output.)"
-        logger.info(f"■ Finished. state={self.state} steps={self._step_count}")
+        logger.info(
+            f"■ Finished. state={self.state} steps={self._step_count} "
+            f"tokens={self.token_budget.summary()}"
+        )
         return final
 
     # ──────────────────────────────────────────────────────────────────────────
-    # Permission-aware tool execution gateway
+    # Skills injection
+    # ──────────────────────────────────────────────────────────────────────────
+
+    async def _inject_relevant_skills(self, prompt: str) -> None:
+        try:
+            from app.skills.skill_engine import get_skill_engine
+            engine = get_skill_engine()
+            skills = engine.get_relevant(prompt, max_skills=2)
+            for skill in skills:
+                self.memory.add(Message.user(skill.to_user_message()))
+                logger.debug(f"[BaseAgent] Injected skill: {skill.name}")
+        except Exception as e:
+            logger.debug(f"[BaseAgent] Skill injection failed (non-fatal): {e}")
+
+    async def _maybe_suggest_skill(self) -> None:
+        cfg = Config.get()
+        threshold = cfg.auto_skill_threshold
+        if self._tool_call_count > 0 and self._tool_call_count % threshold == 0:
+            try:
+                from app.skills.skill_engine import get_skill_engine
+                engine = get_skill_engine()
+                if engine.should_suggest_skill(self._tool_call_count):
+                    summary = self._task_history.context_summary(max_steps=3) if self._task_history else ""
+                    self.memory.add(Message.user(engine.suggest_skill_message(summary)))
+                    logger.info(f"[BaseAgent] Skill suggestion injected at {self._tool_call_count} tool calls")
+            except Exception:
+                pass
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # Permission gateway
     # ──────────────────────────────────────────────────────────────────────────
 
     async def check_permission(self, tool_name: str, args: dict) -> bool:
-        """
-        Check permission for a tool call. In Plan Mode, ASK actions pause
-        for user approval. Returns False if the action should be skipped.
-        """
         try:
             tier = self.gate.check_tool(tool_name, args)
         except PermissionDenied as e:
@@ -186,45 +225,30 @@ class BaseAgent(ABC):
             return False
 
         if tier == PermissionTier.ASK and self.gate.is_plan_mode():
-            approved = await self.gate.request_approval(
-                tool_name, args, description=str(args)[:120]
-            )
+            approved = await self.gate.request_approval(tool_name, args, description=str(args)[:120])
             if not approved:
-                self.memory.add(Message.user(
-                    f"User rejected the action: {tool_name}. Try a different approach."
-                ))
+                self.memory.add(Message.user(f"User rejected: {tool_name}. Try a different approach."))
                 return False
-
         return True
 
     @abstractmethod
-    async def step(self) -> Optional[str]:
-        """Execute one PAORR step. Must be implemented by all agents."""
+    async def step(self) -> Optional[str]: ...
 
     # ──────────────────────────────────────────────────────────────────────────
     # Helpers
     # ──────────────────────────────────────────────────────────────────────────
 
     def _is_stuck_by_duplicates(self) -> bool:
-        msgs = [
-            m.content
-            for m in self.memory.messages[-6:]
-            if m.role == Role.ASSISTANT and m.content
-        ]
+        msgs = [m.content for m in self.memory.messages[-6:]
+                if m.role == Role.ASSISTANT and m.content]
         if len(msgs) >= self._duplicate_threshold:
             last = msgs[-self._duplicate_threshold:]
             return len(set(last)) == 1
         return False
 
-    def record_observation(
-        self,
-        tool_name: str,
-        args: dict,
-        output: Optional[str],
-        error: Optional[str],
-        attempt: int = 1,
-        duration_ms: int = 0,
-    ) -> None:
+    def record_observation(self, tool_name: str, args: dict, output: Optional[str],
+                           error: Optional[str], attempt: int = 1, duration_ms: int = 0) -> None:
+        self._tool_call_count += 1
         if not self._task_history:
             return
         from app.schema import Observation
@@ -232,31 +256,18 @@ class BaseAgent(ABC):
         if step is None:
             step = self._task_history.add_step(f"step {self._step_count}")
         obs = Observation(
-            tool_name=tool_name,
-            args=args,
-            output=output,
-            error=error,
-            success=error is None,
-            attempt=attempt,
-            duration_ms=duration_ms,
+            tool_name=tool_name, args=args, output=output, error=error,
+            success=error is None, attempt=attempt, duration_ms=duration_ms,
         )
         step.observations.append(obs)
-
         if self._session_id:
             task = asyncio.create_task(self.db.log_tool_call(
-                session_id=self._session_id,
-                step=self._step_count,
-                tool_name=tool_name,
-                args=args,
-                output=output,
-                error=error,
-                attempt=attempt,
-                duration_ms=duration_ms,
+                session_id=self._session_id, step=self._step_count, tool_name=tool_name,
+                args=args, output=output, error=error, attempt=attempt, duration_ms=duration_ms,
             ))
-            self._pending_db_tasks.append(task)  # Fix: track to await in cleanup
+            self._pending_db_tasks.append(task)
 
     async def cleanup(self) -> None:
-        # Fix: await pending DB tasks before closing to prevent race condition
         if self._pending_db_tasks:
             try:
                 await asyncio.gather(*self._pending_db_tasks, return_exceptions=True)
@@ -264,3 +275,9 @@ class BaseAgent(ABC):
                 pass
             self._pending_db_tasks.clear()
         self.db.close()
+
+    @property
+    def _trace_id(self) -> str:
+        if not hasattr(self, "_cached_trace_id"):
+            self._cached_trace_id = new_trace_id()
+        return self._cached_trace_id
