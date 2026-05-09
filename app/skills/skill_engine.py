@@ -8,15 +8,13 @@ Skills are Markdown files with YAML frontmatter:
   name: skill_name
   description: What this skill does
   version: 1.0.0
-  required_config: []
-  platform: []
   tags: [github, devops]
   ---
-  
+
   # Skill content here...
 
 Skills are injected as USER messages (not system prompt) to preserve prompt caching.
-After 5+ tool calls in a session, the agent suggests creating a skill.
+After N+ tool calls in a session, the agent suggests creating a skill.
 """
 
 import os
@@ -28,13 +26,13 @@ from typing import Optional
 from app.logger import logger
 
 try:
-    import yaml
+    import yaml as _yaml
     _HAS_YAML = True
 except ImportError:
     _HAS_YAML = False
 
-
-_SKILLS_DIR = Path(os.getenv("MANUSCLAW_SKILLS_DIR", Path.home() / ".manusclaw" / "skills"))
+_DEFAULT_SKILLS_DIR = str(Path.home() / ".manusclaw" / "skills")
+_SKILLS_DIR = Path(os.getenv("MANUSCLAW_SKILLS_DIR", _DEFAULT_SKILLS_DIR))
 _BUILTIN_SKILLS_DIR = Path(__file__).parent / "builtin"
 
 
@@ -51,7 +49,6 @@ class Skill:
     enabled: bool = True
 
     def to_user_message(self) -> str:
-        """Format skill for injection as a user message."""
         return (
             f"[SKILL LOADED: {self.name}]\n"
             f"Description: {self.description}\n\n"
@@ -82,7 +79,6 @@ def _parse_skill_file(path: Path) -> Optional[Skill]:
     except Exception:
         return None
 
-    # Parse YAML frontmatter
     meta: dict = {}
     content = raw
     if raw.startswith("---"):
@@ -92,39 +88,40 @@ def _parse_skill_file(path: Path) -> Optional[Skill]:
             content = parts[2].strip()
             if _HAS_YAML:
                 try:
-                    meta = yaml.safe_load(fm_raw) or {}
+                    meta = _yaml.safe_load(fm_raw) or {}
                 except Exception:
                     meta = _simple_yaml_parse(fm_raw)
             else:
                 meta = _simple_yaml_parse(fm_raw)
 
     name = meta.get("name", path.stem)
+    tags_raw = meta.get("tags", [])
+    if isinstance(tags_raw, str):
+        tags_raw = [t.strip() for t in tags_raw.strip("[]").split(",") if t.strip()]
+
     return Skill(
-        name=name,
-        description=meta.get("description", ""),
+        name=str(name),
+        description=str(meta.get("description", "")),
         version=str(meta.get("version", "1.0.0")),
         content=content,
-        tags=meta.get("tags", []),
+        tags=tags_raw if isinstance(tags_raw, list) else [],
         required_config=meta.get("required_config", []),
         platform=meta.get("platform", []),
         path=path,
-        enabled=meta.get("enabled", True),
+        enabled=bool(meta.get("enabled", True)),
     )
 
 
 def _simple_yaml_parse(text: str) -> dict:
-    """Minimal YAML parser for frontmatter when PyYAML not available."""
     result: dict = {}
     for line in text.splitlines():
         if ":" in line:
             k, _, v = line.partition(":")
-            result[k.strip()] = v.strip().strip('"').strip("'")
+            result[k.strip()] = v.strip().strip('"\''\"')
     return result
 
 
 class SkillEngine:
-    """Manages the skills library — load, create, patch, delete, inject."""
-
     def __init__(self) -> None:
         self._skills: dict[str, Skill] = {}
         self._loaded = False
@@ -141,7 +138,7 @@ class SkillEngine:
             return
         for p in _BUILTIN_SKILLS_DIR.rglob("*.md"):
             skill = _parse_skill_file(p)
-            if skill:
+            if skill and skill.enabled:
                 self._skills[skill.name] = skill
         logger.debug(f"[SkillEngine] Loaded {len(self._skills)} built-in skills")
 
@@ -150,9 +147,9 @@ class SkillEngine:
             return
         for p in _SKILLS_DIR.rglob("*.md"):
             skill = _parse_skill_file(p)
-            if skill:
+            if skill and skill.enabled:
                 self._skills[skill.name] = skill
-        logger.debug(f"[SkillEngine] Total skills after user load: {len(self._skills)}")
+        logger.debug(f"[SkillEngine] Total skills: {len(self._skills)}")
 
     def list_skills(self) -> list[Skill]:
         self._ensure_loaded()
@@ -163,25 +160,21 @@ class SkillEngine:
         return self._skills.get(name)
 
     def create(self, name: str, description: str, content: str,
-               tags: list[str] | None = None, version: str = "1.0.0") -> Skill:
-        """Create a new skill and save to disk."""
+               tags: Optional[list[str]] = None, version: str = "1.0.0") -> Skill:
         _SKILLS_DIR.mkdir(parents=True, exist_ok=True)
         skill = Skill(
-            name=name,
-            description=description,
-            version=version,
-            content=content,
-            tags=tags or [],
+            name=name, description=description, version=version,
+            content=content, tags=tags or [],
             path=_SKILLS_DIR / f"{name}.md",
         )
-        skill.path.write_text(skill.to_file_content(), encoding="utf-8")
+        if skill.path:
+            skill.path.write_text(skill.to_file_content(), encoding="utf-8")
         self._skills[name] = skill
         logger.info(f"[SkillEngine] Created skill: {name}")
         return skill
 
-    def patch(self, name: str, content: str | None = None,
-              description: str | None = None, version: str | None = None) -> Optional[Skill]:
-        """Update an existing skill."""
+    def patch(self, name: str, content: Optional[str] = None,
+              description: Optional[str] = None, version: Optional[str] = None) -> Optional[Skill]:
         self._ensure_loaded()
         skill = self._skills.get(name)
         if not skill:
@@ -198,17 +191,15 @@ class SkillEngine:
         return skill
 
     def delete(self, name: str) -> bool:
-        """Delete a skill from library and disk."""
         self._ensure_loaded()
         skill = self._skills.pop(name, None)
         if skill and skill.path and skill.path.exists():
             skill.path.unlink()
             logger.info(f"[SkillEngine] Deleted skill: {name}")
             return True
-        return False
+        return bool(skill)
 
     def get_relevant(self, goal: str, max_skills: int = 3) -> list[Skill]:
-        """Return skills most relevant to the current goal (keyword match)."""
         self._ensure_loaded()
         goal_lower = goal.lower()
         words = set(re.findall(r"\w+", goal_lower))
@@ -216,7 +207,8 @@ class SkillEngine:
         for skill in self._skills.values():
             if not skill.enabled:
                 continue
-            skill_words = set(re.findall(r"\w+", (skill.description + " ".join(skill.tags)).lower()))
+            skill_text = (skill.description + " " + " ".join(skill.tags)).lower()
+            skill_words = set(re.findall(r"\w+", skill_text))
             overlap = len(words & skill_words)
             if overlap > 0:
                 ranked.append((overlap, skill))
@@ -224,19 +216,17 @@ class SkillEngine:
         return [s for _, s in ranked[:max_skills]]
 
     def should_suggest_skill(self, tool_call_count: int) -> bool:
-        """Return True if the agent should suggest creating a skill (after 5+ tool calls)."""
         return tool_call_count >= 5 and tool_call_count % 5 == 0
 
-    def suggest_skill_message(self, session_summary: str) -> str:
+    def suggest_skill_message(self, session_summary: str = "") -> str:
         return (
-            f"💡 SKILL SUGGESTION: You have completed {5}+ tool calls in this session. "
-            f"Consider creating a skill to capture this workflow for future reuse.\n"
-            f"Use the skill_manager tool with action='create' to save this knowledge.\n"
-            f"Session summary so far:\n{session_summary[:500]}"
+            "SKILL SUGGESTION: You have completed 5+ tool calls in this session. "
+            "Consider creating a skill to capture this workflow for future reuse.\n"
+            "Use the skill_manager tool with action=\'create\' to save this knowledge.\n"
+            + (f"Session so far:\n{session_summary[:400]}" if session_summary else "")
         )
 
 
-# Module-level singleton
 _engine: Optional[SkillEngine] = None
 
 
