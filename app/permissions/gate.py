@@ -186,12 +186,21 @@ class PermissionGate:
         In Plan Mode, print the pending action and ask the user for approval.
         Returns True if approved, False if rejected.
         """
+        import asyncio
         from app.logger import logger
         preview = description or f"{tool_name}({str(args)[:120]})"
         print(f"\n⏸  [PLAN MODE] Pending action requires approval:")
         print(f"   Tool: {tool_name}")
         print(f"   Preview: {preview}")
-        answer = input("   Approve? [y/N]: ").strip().lower()
+        # Fix: use run_in_executor to avoid blocking the event loop
+        try:
+            loop = asyncio.get_running_loop()
+            answer = await loop.run_in_executor(
+                None, lambda: input("   Approve? [y/N]: ").strip().lower()
+            )
+        except EOFError:
+            logger.info(f"[PermissionGate] No interactive terminal — auto-rejecting: {tool_name}")
+            return False
         approved = answer in ("y", "yes")
         if approved:
             self.approve(tool_name, args)

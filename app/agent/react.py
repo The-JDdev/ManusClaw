@@ -92,9 +92,12 @@ approach, WHAT you expect the result to be, and HOW you will verify success.
             )
             raw = (response.content or "{}").strip()
             if raw.startswith("```"):
-                raw = raw.split("```")[1]
-                if raw.startswith("json"):
-                    raw = raw[4:]
+                parts = raw.split("```")
+                if len(parts) >= 2:
+                    raw = parts[1]
+                raw = raw.strip()  # Fix: strip whitespace after extracting from code block
+                if raw.lower().startswith("json"):
+                    raw = raw[raw.lower().index("json") + 4:].strip()
             data = json.loads(raw)
             return Reflection(
                 step_goal=goal,
@@ -108,8 +111,8 @@ approach, WHAT you expect the result to be, and HOW you will verify success.
             return Reflection(
                 step_goal=goal,
                 observation_summary=obs.summary(),
-                solved=True,
-                reason=f"Reflection unavailable ({e}); assuming success.",
+                solved=False,  # Fix: default to NOT solved on parse error
+                reason=f"Reflection unavailable ({e}); assuming NOT solved to force retry.",
             )
 
     async def step(self) -> Optional[str]:

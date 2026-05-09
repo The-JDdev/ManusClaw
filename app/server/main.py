@@ -34,7 +34,7 @@ from app.permissions.gate import AgentMode
 app = FastAPI(
     title="ManusClaw Agent Server",
     description="Autonomous AI agent engine by The-JDdev (SHS Shobuj)",
-    version="3.0.0",
+    version="3.2.0",  # Fix: sync with pyproject.toml
 )
 
 _raw_origins = os.getenv("MANUSCLAW_ALLOWED_ORIGINS", "")
@@ -53,6 +53,13 @@ if _allowed_origins:
         allow_headers=["*"],
     )
 else:
+    # Fix: warn about open CORS in production
+    import warnings
+    warnings.warn(
+        "MANUSCLAW_ALLOWED_ORIGINS not set — CORS allows all origins. "
+        "Set this env var in production to restrict access.",
+        stacklevel=2,
+    )
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
@@ -63,6 +70,15 @@ else:
 
 _API_KEY = os.getenv("MANUSCLAW_API_KEY", "")
 _api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+
+# Fix: warn if API key not set
+if not _API_KEY:
+    import warnings
+    warnings.warn(
+        "MANUSCLAW_API_KEY not set — all endpoints are UNAUTHENTICATED. "
+        "Set this env var in production to require API key authentication.",
+        stacklevel=2,
+    )
 
 
 async def require_api_key(key: Optional[str] = Depends(_api_key_header)) -> None:
@@ -171,7 +187,7 @@ class RunResponse(BaseModel):
 
 @app.get("/healthz")
 async def healthz():
-    return {"status": "ok", "version": "3.0.0", "agent": "ManusClaw"}
+    return {"status": "ok", "version": "3.2.0", "agent": "ManusClaw"}  # Fix: sync version
 
 
 @app.get("/")
@@ -182,7 +198,8 @@ async def root():
 @app.post("/run", response_model=RunResponse, dependencies=[Depends(require_api_key)])
 async def run_agent(req: RunRequest):
     mode = AgentMode.PLAN if req.mode.lower() == "plan" else AgentMode.BUILD
-    session_id = await db.create_session(req.prompt, mode=req.mode)
+    mode_str = mode.value
+    session_id = await db.create_session(req.prompt, mode=mode_str)  # Fix: use enum value
 
     async def _run():
         streamer = StreamingManus(session_id=session_id, mode=mode, max_steps=req.max_steps)
@@ -191,7 +208,12 @@ async def run_agent(req: RunRequest):
         except Exception as e:
             logger.error(f"[Server] Agent run error: {e}")
 
-    asyncio.create_task(_run())
+    # Fix: store task reference to prevent GC and lost errors
+    task = asyncio.create_task(_run())
+    _bg = getattr(app.state, 'background_tasks', set())
+    _bg.add(task)
+    task.add_done_callback(_bg.discard)
+    app.state.background_tasks = _bg
     return RunResponse(session_id=session_id, status="running")
 
 
@@ -199,7 +221,8 @@ async def run_agent(req: RunRequest):
 async def run_agent_sync(req: RunRequest):
     from app.agent.manus import Manus
     mode = AgentMode.PLAN if req.mode.lower() == "plan" else AgentMode.BUILD
-    session_id = await db.create_session(req.prompt, mode=req.mode)
+    mode_str = mode.value
+    session_id = await db.create_session(req.prompt, mode=mode_str)  # Fix: use enum value
     try:
         agent = Manus(mode=mode, session_id=session_id)
         agent._max_steps = req.max_steps

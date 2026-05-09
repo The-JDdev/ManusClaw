@@ -27,7 +27,7 @@ import asyncio
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 from app.logger import logger
@@ -44,7 +44,7 @@ class RoleMessage:
     to_role:   str            # "*" = broadcast to all
     content:   str
     artefact:  Optional[Any] = None   # structured output (PRD, design, code, …)
-    ts:        datetime       = field(default_factory=datetime.utcnow)
+    ts:        datetime       = field(default_factory=lambda: datetime.now(timezone.utc))
 
     def __str__(self) -> str:
         return f"[{self.from_role} → {self.to_role}] {self.content[:120]}"

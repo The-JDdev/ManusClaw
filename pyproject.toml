@@ -43,6 +43,7 @@ dependencies = [
 llm = [
   "openai>=1.30",
   "anthropic>=0.28",
+  "google-generativeai>=0.7",  # Fix: add missing Google/Gemini dependency
   "tiktoken>=0.7",
 ]
 server = [
@@ -78,6 +79,7 @@ dev = [
 all = [
   "openai>=1.30",
   "anthropic>=0.28",
+  "google-generativeai>=0.7",  # Fix: add missing Google/Gemini dependency
   "tiktoken>=0.7",
   "fastapi>=0.111",
   "uvicorn[standard]>=0.30",

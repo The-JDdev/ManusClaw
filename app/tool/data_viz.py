@@ -1,9 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 import json
-import subprocess
 import sys
-import tempfile
 from pathlib import Path
 from typing import Any, Optional
 
@@ -54,9 +53,25 @@ class DataVisualization(BaseTool):
         format: str = "png",
         **_: Any,
     ) -> ToolResult:
+        # Fix: validate chart_type against allowed values to prevent code injection
+        allowed_chart_types = {"bar", "line", "scatter", "pie", "histogram"}
+        if chart_type not in allowed_chart_types:
+            return ToolResult(error=f"Invalid chart_type '{chart_type}'. Must be one of: {allowed_chart_types}")
+
+        # Fix: sanitize output_name to prevent path traversal
+        import re
+        if not re.match(r'^[a-zA-Z0-9_\-]+$', output_name):
+            return ToolResult(error=f"Invalid output_name '{output_name}'. Only alphanumeric, underscores, and hyphens allowed.")
+
         workspace = Path(Config.get().workspace_dir)
         workspace.mkdir(exist_ok=True)
         out_path = workspace / f"{output_name}.{format}"
+
+        # Fix: verify the resolved path is still within workspace
+        try:
+            out_path.resolve().relative_to(workspace.resolve())
+        except ValueError:
+            return ToolResult(error="Output path escapes workspace directory.")
 
         labels = data.get("labels", [])
         values = data.get("values", [])
@@ -64,15 +79,18 @@ class DataVisualization(BaseTool):
 
         code = self._build_matplotlib_code(chart_type, labels, values, title, str(out_path), format)
         try:
-            result = subprocess.run(
-                [sys.executable, "-c", code],
-                capture_output=True,
-                text=True,
-                timeout=30,
+            # Fix: use asyncio subprocess to avoid blocking the event loop
+            proc = await asyncio.create_subprocess_exec(
+                sys.executable, "-c", code,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
             )
-            if result.returncode != 0:
-                return ToolResult(error=f"Chart generation failed: {result.stderr}")
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
+            if proc.returncode != 0:
+                return ToolResult(error=f"Chart generation failed: {stderr.decode()}")
             return ToolResult(output=f"Chart saved to {out_path}")
+        except asyncio.TimeoutError:
+            return ToolResult(error="Chart generation timed out after 30 seconds.")
         except Exception as e:
             return ToolResult(error=str(e))
 

@@ -29,7 +29,11 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         user_prompt = " ".join(sys.argv[1:])
     else:
-        user_prompt = input("Enter your task: ").strip()
+        try:
+            user_prompt = input("Enter your task: ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print("\nNo input provided. Using default task.")
+            user_prompt = ""
         if not user_prompt:
             user_prompt = "Print 'Hello from ManusClaw!' using Python."
 

@@ -56,9 +56,12 @@ class DockerSandbox:
         except asyncio.TimeoutError:
             await self.stop()
             return ToolResult(error=f"Execution timed out after {self.timeout}s")
+        # Fix: only treat stderr as error when process failed (non-zero return code)
+        # Many programs write diagnostics to stderr even on success
+        error = stderr.decode().strip() or None if proc.returncode != 0 else None
         return ToolResult(
             output=stdout.decode().strip() or None,
-            error=stderr.decode().strip() or None,
+            error=error,
         )
 
     async def stop(self) -> None:

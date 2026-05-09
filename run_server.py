@@ -37,10 +37,10 @@ def main() -> None:
     print(f"  ██║╚██╔╝██║██╔══██║██║╚██╗██║██║   ██║╚════██║")
     print(f"  ██║ ╚═╝ ██║██║  ██║██║ ╚████║╚██████╔╝███████║")
     print(f"  ╚═╝     ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝ ╚══════╝")
-    print(f"  ManusClaw v3.0 — Agent Server  by The-JDdev (SHS Shobuj)")
+    print(f"  ManusClaw v3.2 — Agent Server  by The-JDdev (SHS Shobuj)")  # Fix: sync version
     print(f"\n  Listening: http://{args.host}:{args.port}")
     print(f"  REST:      http://{args.host}:{args.port}/run")
-    print(f"  WebSocket: wss://{args.host}:{args.port}/ws/<session_id>")
+    print(f"  WebSocket: ws://{args.host}:{args.port}/ws/<session_id>")  # Fix: ws:// not wss:// (no TLS)
     print(f"  Sessions:  http://{args.host}:{args.port}/sessions")
     print(f"  Health:    http://{args.host}:{args.port}/healthz\n")
 

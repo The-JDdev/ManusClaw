@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Callable, Literal, Optional, Union
 
@@ -134,7 +134,7 @@ class Observation(BaseModel):
     success:    bool
     attempt:    int      = 1
     duration_ms: int     = 0
-    timestamp:  datetime = Field(default_factory=datetime.utcnow)
+    timestamp:  datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     def summary(self) -> str:
         if self.success:
@@ -171,7 +171,7 @@ class TaskStep(BaseModel):
     observations: list[Observation] = Field(default_factory=list)
     reflection:   Optional[Reflection] = None
     resolved:     bool     = False
-    timestamp:    datetime = Field(default_factory=datetime.utcnow)
+    timestamp:    datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     def summary(self) -> str:
         status = "✓" if self.resolved else "✗"
@@ -184,7 +184,7 @@ class TaskHistory(BaseModel):
     task_id:       str
     original_goal: str
     steps:         list[TaskStep] = Field(default_factory=list)
-    created_at:    datetime       = Field(default_factory=datetime.utcnow)
+    created_at:    datetime       = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     def add_step(self, goal: str) -> TaskStep:
         step = TaskStep(step_number=len(self.steps) + 1, goal=goal)
@@ -462,7 +462,9 @@ class PipelineResult(BaseModel):
         for stage in self.stages:
             icon = "✓" if stage.status == "completed" else "✗"
             lines.append(f"  {icon} {stage.role_name.replace('_', ' ').title():<20s} "
-                          f"[{stage.duration_s:.1f}s] — {stage.output[:100]}...")
+                          f"[{stage.duration_s:.1f}s] — {stage.output[:100]}"
+                if len(stage.output) > 100:
+                    lines[-1] += "...")
         if self.timed_out:
             lines.append("\n  ⏱ Pipeline timed out before all stages completed.")
         lines.append("═══════════════════════════════════════════════════")

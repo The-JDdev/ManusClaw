@@ -198,8 +198,9 @@ tool or different arguments — DO NOT repeat the same failing call.
                             f"{corrected_name}({self._fmt_args(corrected_args)})"
                         )
                         name, args = corrected_name, corrected_args
+                        tool_call_id = corrected_tc.id  # Fix: update ID to match corrected call
                         await asyncio.sleep(min(wait, TOOL_RETRY_MAX))
-                        wait *= 2 + random.uniform(0, 0.5)
+                        wait = wait * 2 + random.uniform(0, 0.5)  # Fix: additive backoff
                         continue
                     else:
                         logger.warning(
@@ -233,7 +234,7 @@ tool or different arguments — DO NOT repeat the same failing call.
                         f"Choose a different tool or safer arguments."
                     ))
                     await asyncio.sleep(min(wait, TOOL_RETRY_MAX))
-                    wait *= 2 + random.uniform(0, 0.5)
+                    wait = wait * 2 + random.uniform(0, 0.5)  # Fix: additive backoff
 
         logger.error(f"[{self.name}] '{name}' failed after {MAX_TOOL_RETRIES} attempts.")
         self.memory.add(Message.tool(
@@ -259,7 +260,7 @@ tool or different arguments — DO NOT repeat the same failing call.
 
         last_content = ""
         for m in reversed(self.memory.messages):
-            if m.role.value == "assistant" and m.content:
+            if m.role == Role.ASSISTANT and m.content:
                 last_content = m.content.lower()
                 break
         if any(kw in last_content for kw in ["task complete", "all done", "finished", "done"]):

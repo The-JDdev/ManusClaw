@@ -61,9 +61,9 @@ class BaseAgent(ABC):
         self._session_id: Optional[str] = None
         self._step_count = 0
         self._max_steps = cfg.max_steps
-        self._duplicate_threshold = 2
+        self._duplicate_threshold = 3  # Fix: 2 was too aggressive for legitimate short confirmations
         self._task_history: Optional[TaskHistory] = None
-        self._trace_id: str = new_trace_id()
+        self._pending_db_tasks: list[asyncio.Task] = []  # Track fire-and-forget DB tasks
 
     # ──────────────────────────────────────────────────────────────────────────
     # Public API
@@ -243,7 +243,7 @@ class BaseAgent(ABC):
         step.observations.append(obs)
 
         if self._session_id:
-            asyncio.create_task(self.db.log_tool_call(
+            task = asyncio.create_task(self.db.log_tool_call(
                 session_id=self._session_id,
                 step=self._step_count,
                 tool_name=tool_name,
@@ -253,6 +253,14 @@ class BaseAgent(ABC):
                 attempt=attempt,
                 duration_ms=duration_ms,
             ))
+            self._pending_db_tasks.append(task)  # Fix: track to await in cleanup
 
     async def cleanup(self) -> None:
+        # Fix: await pending DB tasks before closing to prevent race condition
+        if self._pending_db_tasks:
+            try:
+                await asyncio.gather(*self._pending_db_tasks, return_exceptions=True)
+            except Exception:
+                pass
+            self._pending_db_tasks.clear()
         self.db.close()

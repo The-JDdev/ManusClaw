@@ -24,6 +24,7 @@ Feedback loop (new in v3):
 
 import asyncio
 import re
+import time
 import uuid
 from typing import Optional
 
@@ -117,6 +118,8 @@ class PlanningFlow:
             result     = None
             success    = False
             attempts   = 1
+            error_msg  = None  # Fix: track error message for blocked steps
+            t_step     = time.monotonic()  # Fix: track step duration
 
             # ── First attempt ──────────────────────────────────────────
             try:
@@ -128,6 +131,7 @@ class PlanningFlow:
                     f"[PlanningFlow:{flow_id}] "
                     f"Step {step.id + 1} failed (attempt 1): {e}"
                 )
+                error_msg = str(e)  # Fix: capture error message
 
             # ── Retry with a fresh agent ───────────────────────────────
             if not success:
@@ -150,6 +154,7 @@ class PlanningFlow:
                         f"Step {step.id + 1} blocked after retry: {e2}"
                     )
                     step.status = StepStatus.BLOCKED
+                    error_msg = str(e2)  # Fix: capture blocked error
 
             # ── Score the result ───────────────────────────────────────
             score = 0.0
@@ -163,12 +168,15 @@ class PlanningFlow:
                 )
 
             # ── Record in flow result ──────────────────────────────────
+            elapsed_s = round(time.monotonic() - t_step, 2)  # Fix: compute step duration
             flow.steps.append(FlowStepResult(
-                step_id      = step.id,
-                description  = step.description,
-                status       = step.status,
-                output       = (result or "")[:400],
-                attempts     = attempts,
+                step_id       = step.id,
+                description   = step.description,
+                status        = step.status,
+                output        = (result or "")[:400],
+                error         = error_msg,  # Fix: populate error field for blocked steps
+                attempts      = attempts,
+                duration_s    = elapsed_s,  # Fix: populate duration
                 success_score = score,
             ))
 
@@ -197,6 +205,10 @@ class PlanningFlow:
                     flow.goal, completed_ctx, remaining, cause
                 )
                 plan.steps = plan.steps[:step_idx + 1] + new_plan.steps
+                # Fix: offset new step IDs to avoid collisions with existing IDs
+                existing_count = len(plan.steps[:step_idx + 1])
+                for new_step in new_plan.steps:
+                    new_step.id += existing_count
 
             step_idx += 1
 

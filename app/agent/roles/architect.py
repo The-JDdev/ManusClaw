@@ -113,6 +113,14 @@ explicitly so the Engineer can execute tasks in the correct order.
             decision, reason = self.decide(design)
             if decision != RoleDecision.PROCEED:
                 logger.error(f"[{self.role_name}] Could not produce complete design: {reason}")
+                # Fix: do NOT publish incomplete design downstream — return error instead
+                await self.bus.publish(RoleMessage(
+                    from_role=self.role_name,
+                    to_role="engineer",
+                    content=f"Architect failed to produce complete design: {reason}",
+                    artefact=None,
+                ))
+                return f"ARCHITECT ERROR: {reason}"
 
         logger.info(f"[{self.role_name}] Design complete ({len(design)} chars). Publishing to Engineer.")
         await self.bus.publish(RoleMessage(

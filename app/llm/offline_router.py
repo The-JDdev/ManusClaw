@@ -8,6 +8,7 @@ Supports:
   - Direct GGUF   (llama-cpp-python, fully offline, no internet)
 """
 from __future__ import annotations
+import asyncio
 import json
 from typing import Iterator, List, Optional
 
@@ -35,14 +36,16 @@ class GGUFRouter:
                  n_gpu_layers: int = 0):
         self.llm = _load_gguf(model_path, n_ctx, n_gpu_layers)
 
-    def chat(self, messages: List[dict], max_tokens: int = 2048,
-             temperature: float = 0.7, **_) -> str:
-        resp = self.llm.create_chat_completion(
+    async def chat(self, messages: List[dict], max_tokens: int = 2048,
+                    temperature: float = 0.7, **_) -> dict:
+        """Async wrapper that returns OpenAI-format dict."""
+        resp = await asyncio.to_thread(
+            self.llm.create_chat_completion,
             messages=messages,
             max_tokens=max_tokens,
             temperature=temperature,
         )
-        return resp["choices"][0]["message"]["content"]
+        return resp  # already OpenAI-format dict
 
     def stream(self, messages: List[dict], max_tokens: int = 2048,
                temperature: float = 0.7, **_) -> Iterator[str]:
@@ -77,15 +80,17 @@ class OllamaRouter:
         except ImportError:
             self._httpx = False
 
-    def _post(self, endpoint: str, payload: dict) -> dict:
+    async def _post(self, endpoint: str, payload: dict) -> dict:
         import json as _j
         url = f"{self.base}{endpoint}"
         data = _j.dumps(payload).encode()
         if self._httpx:
             import httpx
-            r = httpx.post(url, content=data,
-                           headers={"Content-Type": "application/json"},
-                           timeout=None)
+            r = await asyncio.to_thread(
+                httpx.post, url, data,
+                headers={"Content-Type": "application/json"},
+                timeout=None,
+            )
             return r.json()
         else:
             import urllib.request
@@ -93,21 +98,32 @@ class OllamaRouter:
                 url, data=data,
                 headers={"Content-Type": "application/json"}, method="POST"
             )
-            with urllib.request.urlopen(req) as resp:
-                return _j.loads(resp.read().decode())
+            resp = await asyncio.to_thread(urllib.request.urlopen, req)
+            return _j.loads(resp.read().decode())
 
-    def chat(self, messages: List[dict], max_tokens: int = 2048,
-             temperature: float = 0.7, **_) -> str:
-        resp = self._post("/api/chat", {
+    async def chat(self, messages: List[dict], max_tokens: int = 2048,
+                    temperature: float = 0.7, **_) -> dict:
+        """Async Ollama chat returning OpenAI-format dict."""
+        resp = await self._post("/api/chat", {
             "model": self.model,
             "messages": messages,
             "stream": False,
             "options": {"num_predict": max_tokens, "temperature": temperature},
         })
-        return resp["message"]["content"]
+        # Ollama /api/chat returns {"message": {"role": ..., "content": ...}}
+        # Convert to OpenAI format
+        return {
+            "choices": [{
+                "message": {
+                    "role": resp.get("message", {}).get("role", "assistant"),
+                    "content": resp.get("message", {}).get("content", ""),
+                    "tool_calls": None,
+                }
+            }]
+        }
 
-    def list_models(self) -> List[str]:
-        resp = self._post("/api/tags", {})
+    async def list_models(self) -> List[str]:
+        resp = await self._post("/api/tags", {})
         return [m["name"] for m in resp.get("models", [])]
 
 
@@ -125,7 +141,7 @@ class OpenAICompatRouter:
     """
 
     def __init__(self, model: str, base_url: str,
-                 api_key: str = "none", timeout: int = None):
+                 api_key: str = "none", timeout: Optional[int] = None):
         self.model = model
         self.base = base_url.rstrip("/")
         self.headers = {
@@ -134,30 +150,35 @@ class OpenAICompatRouter:
         }
         self.timeout = timeout
 
-    def chat(self, messages: List[dict], max_tokens: int = 2048,
-             temperature: float = 0.7, **_) -> str:
+    async def chat(self, messages: List[dict], max_tokens: int = 2048,
+                   temperature: float = 0.7, **_) -> dict:
+        """Async OpenAI-compatible chat returning OpenAI-format dict."""
+        payload = {
+            "model": self.model, "messages": messages,
+            "max_tokens": max_tokens, "temperature": temperature,
+        }
         try:
             import httpx
-            r = httpx.post(
+            r = await asyncio.to_thread(
+                httpx.post,
                 f"{self.base}/chat/completions",
                 headers=self.headers,
-                json={"model": self.model, "messages": messages,
-                      "max_tokens": max_tokens, "temperature": temperature},
+                json=payload,
                 timeout=self.timeout,
             )
-            return r.json()["choices"][0]["message"]["content"]
+            return r.json()
         except ImportError:
             import urllib.request, json as _j
-            data = _j.dumps({
-                "model": self.model, "messages": messages,
-                "max_tokens": max_tokens, "temperature": temperature,
-            }).encode()
+            data = _j.dumps(payload).encode()
             req = urllib.request.Request(
                 f"{self.base}/chat/completions",
                 data=data, headers=self.headers, method="POST"
             )
-            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
-                return _j.loads(resp.read())["choices"][0]["message"]["content"]
+            resp = await asyncio.to_thread(
+                urllib.request.urlopen, req, timeout=self.timeout
+            )
+            body = resp.read()
+            return _j.loads(body)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -173,8 +194,8 @@ class HuggingFaceRouter:
     Or a Spaces URL: "https://your-space.hf.space"
     """
 
-    def __init__(self, model: str, hf_token: str = None,
-                 endpoint_url: str = None):
+    def __init__(self, model: str, hf_token: Optional[str] = None,
+                 endpoint_url: Optional[str] = None):
         self.token = hf_token or ""
         self.headers = {"Authorization": f"Bearer {self.token}",
                         "Content-Type": "application/json"}
@@ -186,25 +207,29 @@ class HuggingFaceRouter:
                 "/v1/chat/completions"
             )
 
-    def chat(self, messages: List[dict], max_tokens: int = 1024,
-             temperature: float = 0.7, **_) -> str:
+    async def chat(self, messages: List[dict], max_tokens: int = 1024,
+                   temperature: float = 0.7, **_) -> dict:
+        """Async HuggingFace chat returning OpenAI-format dict."""
+        payload = {
+            "messages": messages, "max_tokens": max_tokens,
+            "temperature": temperature,
+        }
         try:
             import httpx
-            r = httpx.post(self.url, headers=self.headers,
-                           json={"messages": messages,
-                                 "max_tokens": max_tokens,
-                                 "temperature": temperature},
-                           timeout=120)
-            return r.json()["choices"][0]["message"]["content"]
+            r = await asyncio.to_thread(
+                httpx.post, self.url, headers=self.headers,
+                json=payload, timeout=120,
+            )
+            return r.json()
         except ImportError:
             import urllib.request, json as _j
-            data = _j.dumps({"messages": messages, "max_tokens": max_tokens,
-                             "temperature": temperature}).encode()
+            data = _j.dumps(payload).encode()
             req = urllib.request.Request(
                 self.url, data=data, headers=self.headers, method="POST"
             )
-            with urllib.request.urlopen(req, timeout=120) as resp:
-                return _j.loads(resp.read())["choices"][0]["message"]["content"]
+            resp = await asyncio.to_thread(urllib.request.urlopen, req, timeout=120)
+            body = resp.read()
+            return _j.loads(body)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

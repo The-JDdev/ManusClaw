@@ -134,7 +134,8 @@ class UniversalClient:
             **self._extra_headers,
         }
         url = f"{self.base_url}/chat/completions"
-        async with aiohttp.ClientSession() as session:
+        timeout = aiohttp.ClientTimeout(total=120)  # Fix: add timeout to prevent hangs
+        async with aiohttp.ClientSession(timeout=timeout) as session:  # Fix: reuse session with timeout
             async with session.post(url, json=payload, headers=headers) as resp:
                 if resp.status == 429:
                     raise RateLimitError("Rate limited")
@@ -187,6 +188,7 @@ class AnthropicClient:
         self._c = AsyncAnthropic(api_key=cfg.api_key)
         self.model = cfg.model
         self.max_tokens = cfg.max_tokens
+        self.temperature = cfg.temperature  # Fix: store temperature
 
     async def chat(self, messages: list[dict], tools: Optional[list[dict]] = None) -> dict:
         system = next((m["content"] for m in messages if m["role"] == "system"), None)
@@ -195,6 +197,7 @@ class AnthropicClient:
         kwargs: dict[str, Any] = dict(
             model=self.model,
             max_tokens=self.max_tokens,
+            temperature=self.temperature,  # Fix: pass temperature to Anthropic
             messages=conv,
         )
         if system:
@@ -210,11 +213,11 @@ class AnthropicClient:
             ]
 
         resp = await self._c.messages.create(**kwargs)
-        content = ""
+        content_parts = []  # Fix: append all text blocks instead of overwriting
         tool_calls = []
         for block in resp.content:
             if block.type == "text":
-                content = block.text
+                content_parts.append(block.text)
             elif block.type == "tool_use":
                 import json
                 tool_calls.append({
@@ -229,7 +232,7 @@ class AnthropicClient:
             "choices": [{
                 "message": {
                     "role": "assistant",
-                    "content": content or None,
+                    "content": "\n".join(content_parts) or None,  # Fix: join all text blocks
                     "tool_calls": tool_calls or None,
                 }
             }]
@@ -238,7 +241,13 @@ class AnthropicClient:
 
 class GoogleClient:
     def __init__(self, cfg) -> None:
-        import google.generativeai as genai
+        try:
+            import google.generativeai as genai
+        except ImportError:
+            raise ImportError(
+                "google-generativeai is not installed. "
+                "Install with: pip install google-generativeai"
+            )
         genai.configure(api_key=cfg.api_key)
         self._model_name = cfg.model or "gemini-1.5-pro"
         self.max_tokens = cfg.max_tokens
@@ -251,12 +260,38 @@ class GoogleClient:
             f"{m['role'].upper()}: {m.get('content') or ''}"
             for m in messages
         )
-        resp = await asyncio.to_thread(model.generate_content, prompt)
+        gen_config = genai.types.GenerationConfig(
+            max_output_tokens=self.max_tokens,
+            temperature=self.temperature,
+        )
+        # Fix: pass tools if provided (convert OpenAI format to Gemini format)
+        gemini_tools = None
+        if tools:
+            try:
+                declarations = []
+                for t in tools:
+                    func = t.get("function", {})
+                    declarations.append(genai.types.FunctionDeclaration(
+                        name=func.get("name", ""),
+                        description=func.get("description", ""),
+                        parameters=func.get("parameters", {}),
+                    ))
+                gemini_tools = [genai.types.Tool(function_declarations=declarations)]
+            except Exception:
+                pass  # Fall back to no tools if conversion fails
+
+        resp = await asyncio.to_thread(
+            model.generate_content, prompt,
+            generation_config=gen_config,
+            tools=gemini_tools,
+        )
+        # Fix: handle None resp.text (safety blocks, empty responses)
+        content = getattr(resp, 'text', None) or ""
         return {
             "choices": [{
                 "message": {
                     "role": "assistant",
-                    "content": resp.text,
+                    "content": content,
                     "tool_calls": None,
                 }
             }]

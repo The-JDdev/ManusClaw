@@ -30,7 +30,9 @@ run_pipeline() → PipelineResult (typed, structured)
 """
 
 import asyncio
+import re
 import time
+from collections import deque
 from typing import Callable, Optional
 
 from app.agent.roles.base_role import RoleMessage, RoleMessageBus
@@ -85,7 +87,7 @@ class MultiAgentOrchestrator:
         self.gate      = PermissionGate(mode=mode)
         self._on_stage_start    = on_stage_start
         self._on_stage_complete = on_stage_complete
-        self._on_stage_error    = on_stage_error
+        self._hook_tasks: list[asyncio.Task] = []  # Fix: store hook tasks to prevent GC
 
     async def run(self, goal: str) -> str:
         result = await self.run_pipeline(goal)
@@ -176,6 +178,11 @@ class MultiAgentOrchestrator:
         final_state = "timeout" if pipeline_result.timed_out else "finished"
         await self.db.close_session(session_id, state=final_state, step_count=len(order))
 
+        # Fix: await any pending hook tasks before returning
+        if self._hook_tasks:
+            await asyncio.gather(*self._hook_tasks, return_exceptions=True)
+            self._hook_tasks.clear()
+
         logger.info(
             f"[Orchestrator:{pipeline_id}] ■ Pipeline complete. "
             f"verdict={pipeline_result.verdict} "
@@ -185,7 +192,7 @@ class MultiAgentOrchestrator:
 
     def _topological_sort(self) -> list[str]:
         in_degree = {r: len(self.deps.get(r, [])) for r in self.pipeline}
-        queue = [r for r in self.pipeline if in_degree[r] == 0]
+        queue: deque[str] = deque(r for r in self.pipeline if in_degree[r] == 0)
         order: list[str] = []
         dependents: dict[str, list[str]] = {r: [] for r in self.pipeline}
 
@@ -195,7 +202,7 @@ class MultiAgentOrchestrator:
                     dependents[d].append(r)
 
         while queue:
-            role = queue.pop(0)
+            role = queue.popleft()  # Fix: O(1) instead of list.pop(0) O(n)
             order.append(role)
             for dep in dependents.get(role, []):
                 in_degree[dep] -= 1
@@ -237,22 +244,25 @@ class MultiAgentOrchestrator:
         if timed_out:
             return "timeout"
         qa_out = results.get("qa", "").upper()
-        if "APPROVED" in qa_out:
+        # Fix: use word-boundary regex to avoid false positives like "NOT APPROVED"
+        if re.search(r"\bAPPROVED\b", qa_out):
             return "approved"
-        if "REWORK" in qa_out:
+        if re.search(r"\bREWORK\b", qa_out):
             return "rework"
         any_error = any(v.startswith("ERROR:") for v in results.values())
         if any_error:
             return "error"
         return "unknown"
 
-    @staticmethod
-    async def _fire_hook(hook: Optional[Callable], *args: object) -> None:
+    async def _fire_hook(self, hook: Optional[Callable], *args: object) -> None:
         if hook is None:
             return
         try:
             coro = hook(*args)
             if asyncio.iscoroutine(coro):
-                asyncio.create_task(coro)
+                task = asyncio.create_task(coro)
+                self._hook_tasks.append(task)  # Fix: store to prevent GC and lost exceptions
+                # Clean up completed tasks
+                self._hook_tasks = [t for t in self._hook_tasks if not t.done()]
         except Exception as e:
             logger.debug(f"[Orchestrator] Hook error (non-fatal): {e}")

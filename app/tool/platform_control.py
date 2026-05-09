@@ -247,7 +247,9 @@ class PlatformControlTool(BaseTool):
 
         try:
             adapter = _build_platform(platform, credentials)
-            result = adapter.call(method, path, params, body)
+            # Fix: run blocking HTTP in thread to avoid blocking event loop
+            import asyncio
+            result = await asyncio.to_thread(adapter.call, method, path, params, body)
             return ToolResult(
                 output=json.dumps(result, indent=2, default=str),
                 error=None,
