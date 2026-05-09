@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 """
-SkillEngine — loads, manages, and injects skills into agent context.
+SkillEngine - loads, manages, and injects skills into agent context.
 
 Skills are Markdown files with YAML frontmatter:
   ---
@@ -113,11 +113,12 @@ def _parse_skill_file(path: Path) -> Optional[Skill]:
 
 
 def _simple_yaml_parse(text: str) -> dict:
+    strip_chars = chr(34) + chr(39)
     result: dict = {}
     for line in text.splitlines():
         if ":" in line:
             k, _, v = line.partition(":")
-            result[k.strip()] = v.strip().strip('"\''\"')
+            result[k.strip()] = v.strip().strip(strip_chars)
     return result
 
 
@@ -222,7 +223,7 @@ class SkillEngine:
         return (
             "SKILL SUGGESTION: You have completed 5+ tool calls in this session. "
             "Consider creating a skill to capture this workflow for future reuse.\n"
-            "Use the skill_manager tool with action=\'create\' to save this knowledge.\n"
+            "Use the skill_manager tool with action='create' to save this knowledge.\n"
             + (f"Session so far:\n{session_summary[:400]}" if session_summary else "")
         )
 
