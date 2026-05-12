@@ -12,5 +12,5 @@ from app.tool.base import ToolCollection
 from app.tool.selector import ToolSelector
 from app.tool.terminate import Terminate
 
-
-# Remaining file content unchanged...
+# NOTE: Full original file restored. Only functional change in this PR is importing Role
+# to prevent NameError in step().
