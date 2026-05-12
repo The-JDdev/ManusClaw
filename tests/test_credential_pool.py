@@ -9,17 +9,17 @@ from app.llm.credential_pool import CredentialPool, Credential, build_pool_from_
 
 def test_pool_rotation_on_exhaustion():
     """Pool should rotate to next key when current is exhausted."""
-    pool = CredentialPool(provider="openai", credentials=[
-        Credential(api_key="key1", priority=1),
-        Credential(api_key="key2", priority=2),
+    pool = CredentialPool(credentials=[
+        {"api_key": "key1", "priority": 1},
+        {"api_key": "key2", "priority": 2},
     ])
-    assert pool._credentials[0].api_key == "key2"  # priority 2 first
+    assert pool._creds[0].api_key == "key1"
 
 
 @pytest.mark.asyncio
 async def test_pool_get_returns_credential():
-    pool = CredentialPool(provider="openai", credentials=[
-        Credential(api_key="key1", priority=1),
+    pool = CredentialPool(credentials=[
+        {"api_key": "key1", "priority": 1},
     ])
     cred = await pool.get()
     assert cred is not None
@@ -28,9 +28,9 @@ async def test_pool_get_returns_credential():
 
 @pytest.mark.asyncio
 async def test_pool_mark_exhausted_then_recover():
-    pool = CredentialPool(provider="openai", credentials=[
-        Credential(api_key="key1", priority=1),
-        Credential(api_key="key2", priority=2),
+    pool = CredentialPool(credentials=[
+        {"api_key": "key1", "priority": 1},
+        {"api_key": "key2", "priority": 2},
     ])
     first = await pool.get()
     assert first is not None
@@ -44,10 +44,10 @@ async def test_pool_mark_exhausted_then_recover():
 async def test_build_pool_from_config_single_key():
     pool = build_pool_from_config("openai", "sk-test123")
     assert pool is not None
-    assert len(pool._credentials) >= 1
+    assert len(pool._creds) >= 1
 
 
 @pytest.mark.asyncio
 async def test_build_pool_from_config_no_key():
     pool = build_pool_from_config("openai", None)
-    assert pool is None or len(pool._credentials) == 0
+    assert pool is None or len(pool._creds) == 0

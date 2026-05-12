@@ -83,6 +83,43 @@ class MockLLM:
     async def ask_tool(self, messages: list, tools: list, **_: Any) -> Message:
         return await self.ask(messages)
 
+    async def chat(self, messages: list[dict[str, Any]], tools: Optional[list[dict[str, Any]]] = None,
+                   **_: Any) -> dict[str, Any]:
+        self._call_count += 1
+        if self._call_count <= 1:
+            return {
+                "choices": [{
+                    "message": {
+                        "role": "assistant",
+                        "content": "[MockLLM] Running Python hello-world.",
+                        "tool_calls": [{
+                            "id": "mock-tc-1",
+                            "type": "function",
+                            "function": {
+                                "name": "python_execute",
+                                "arguments": '{"code": "print(\\"Hello from ManusClaw!\\")"}'
+                            }
+                        }]
+                    }
+                }]
+            }
+        return {
+            "choices": [{
+                "message": {
+                    "role": "assistant",
+                    "content": "Task complete.",
+                    "tool_calls": [{
+                        "id": "mock-tc-2",
+                        "type": "function",
+                        "function": {
+                            "name": "terminate",
+                            "arguments": '{"reason": "Completed by MockLLM."}'
+                        }
+                    }]
+                }
+            }]
+        }
+
 
 class UniversalClient:
     def __init__(self, base_url: str, api_key: str, model: str, **kwargs: Any) -> None:

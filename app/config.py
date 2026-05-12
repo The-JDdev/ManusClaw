@@ -54,8 +54,8 @@ class LLMConfig(BaseModel):
     api_key:        Optional[str]  = None
     max_tokens:     int            = 4096
     temperature:    float          = 0.0
-    max_retries:    int            = 6
-    timeout:        int            = 120
+    max_retries:    int            = 15
+    timeout:        int            = 600
     extra_headers:  dict[str, str] = Field(default_factory=dict)
     extra_api_keys: list[str]      = Field(default_factory=list)
 
