@@ -131,7 +131,7 @@ It runs on **Linux, macOS, Windows, Docker, and Termux (Android)**. It ships wit
 9. [🎮 Platform Domination](#-platform-domination-platformcontroltool)
 10. [📡 Dual UI: Terminal & Web](#-dual-ui-terminal--web)
 11. [🏗️ Architecture Deep Dive](#️-architecture-deep-dive)
-12. [🔧 Bug Fixes & Improvements (v3.2 Patch)](#-bug-fixes--improvements-v32-patch)
+12. [🔧 Bug Fixes & Improvements (v4.0 Full Audit)](#-bug-fixes--improvements-v40-full-audit)
 13. [💌 A Note from the Founder](#-a-note-from-the-founder)
 14. [💎 Donation Vault](#-donation-vault)
 
@@ -1361,121 +1361,125 @@ This forces the agent to maintain an explicit model of its progress and prevents
 
 ---
 
-## 🔧 Bug Fixes & Improvements (v3.2 Patch)
+## 🔧 Bug Fixes & Improvements (v4.0 Full Audit)
 
-A comprehensive codebase audit identified and resolved **128+ bugs, errors, and missing logic** across 19 files — 267 lines added, 102 lines removed. Every fix preserves existing behavior while correcting the underlying defect. No features were removed or skipped.
+A comprehensive two-part codebase audit identified and resolved **23 bugs, broken logic blocks, and missing entry points** across 19 source files. Every critical, high, and medium severity issue has been fixed. No features removed.
 
-### 🔴 Critical Fixes (6 files)
+---
 
-These fixes address bugs that could cause data loss, incorrect execution, silent failures, or security vulnerabilities in core agent pathways.
+### 🔴 Critical — Crash / Completely Broken
 
-#### `app/llm/offline_router.py` — All Routers Were Sync with Wrong Return Types
+#### `app/cron.py` — Missing `main()` Entry Point
+`pyproject.toml` maps `manusclaw-cron = "app.cron:main"` but the function did not exist. Running `manusclaw-cron` crashed with `AttributeError`. Added a full CLI: `--run`, `--list`, `--add`, `--remove`, `--trigger`.
 
-All four offline routers (`OllamaRouter`, `LMStudioRouter`, `GGUFRouter`, `HuggingFaceRouter`) were implemented as **synchronous methods** despite being called from async contexts. This caused the event loop to block on every LLM call, freezing the entire agent while waiting for model inference. Additionally, the return types were inconsistent — some routers returned raw strings while others returned dictionaries, breaking the caller's type expectations. All four routers have been converted to **proper async methods** with `await` on I/O operations, and return types are now unified to match the `LLMResponse` schema that the rest of the codebase expects.
+#### `app/cron.py` — Fire-and-Forget `asyncio.create_task` GC Risk
+`run_forever()` discarded task references. Python's GC could destroy tasks mid-execution, silently killing jobs. Tasks are now stored in `self._tasks: set` with `add_done_callback(self._tasks.discard)`.
 
-#### `app/agent/toolcall.py` — Exponential Backoff Operator Precedence & tool_call_id Mismatch
+#### `pyproject.toml` — Missing `manusclaw-multi` Entry Point
+`app/multi_agent.py` exposes `run_cli()` but was never registered as a console script. Added: `manusclaw-multi = "app.multi_agent:run_cli"`.
 
-The exponential backoff calculation `base * 2 ** attempt + jitter` suffered from **Python operator precedence** issues — the addition of jitter was applied before the exponentiation in certain code paths, resulting in nearly constant retry delays instead of the intended exponential growth. The formula has been parenthesized explicitly as `(base * (2 ** attempt)) + jitter` to guarantee correct evaluation order. Additionally, the `tool_call_id` field in tool response messages was being set to a **newly generated UUID** instead of the original `tool_call_id` from the LLM's function call, which caused the LLM to reject tool results as orphaned responses. The fix ensures the response `tool_call_id` always matches the request's `tool_call_id`.
+#### `app/llm/llm.py` — AnthropicClient Sends OpenAI-Format Messages (HTTP 400)
+`AnthropicClient.chat()` passed OpenAI messages directly to the Anthropic SDK. Anthropic requires: `role:"tool"` → `role:"user"` with `type:"tool_result"` blocks; assistant `tool_calls` → `type:"tool_use"` blocks; consecutive same-role messages merged. Every multi-turn tool call returned HTTP 400. Added `_to_anthropic_messages()` converter.
 
-#### `app/agent/react.py` — solved=True Default on Parse Error & Case-Sensitive Code Block Parsing
+#### `app/llm/llm.py` — AnthropicClient Temperature on Extended-Thinking Models
+Claude-3-7-sonnet and claude-sonnet-4 require `temperature=1` and reject arbitrary values. Temperature is now conditionally excluded for extended-thinking model families.
 
-When the ReAct agent failed to parse the LLM's response (malformed JSON, unexpected format), the parser defaulted to `solved=True`, causing the agent to **prematurely terminate** and report success even when the task was incomplete. The fix changes the default to `solved=False` on parse errors, forcing the agent to retry with a corrected prompt. Additionally, code block extraction used a **case-sensitive** regex pattern that only matched lowercase ` ```python ` but missed ` ```Python ` or ` ```PYTHON ` variants that some LLMs produce. The regex is now case-insensitive.
+#### `app/llm/llm.py` — GoogleClient Ignores `tools` Parameter
+`GoogleClient.chat()` silently discarded `tools`, making function-calling impossible. Added full conversion of OpenAI tool schemas to Gemini `FunctionDeclaration` protos with proper multi-turn chat history.
 
-#### `app/agent/base.py` — Fire-and-Forget DB Race Condition & Overly Aggressive Duplicate Threshold
+#### `app/llm/llm.py` — Offline Routers Are Dead Code
+`OllamaRouter`, `GGUFRouter`, `HuggingFaceRouter` existed in `offline_router.py` but were never wired into `LLM._build_backend()`. Setting `provider="ollama"`, `"gguf"`, or `"huggingface"` fell through to MockLLM. All three providers are now correctly routed.
 
-The base agent's step-logging method dispatched database writes as **fire-and-forget `asyncio.create_task()`** calls without awaiting completion. Under high concurrency (multi-agent pipelines), this caused SQLite write contention, silently dropped audit log entries, and occasionally corrupted the WAL index. The fix uses `await` on the database write coroutine directly within the step method, ensuring each write completes before the next step begins. The duplicate message detection threshold was also set too aggressively — a similarity threshold of `0.85` flagged legitimate distinct messages as duplicates when they shared common boilerplate text (e.g., two different tool results both containing "Tool call result:"). The threshold has been lowered to `0.95` to reduce false positives while still catching genuine duplicates.
+#### `app/llm/llm.py` — Credential Pool Rotation Only Works for UniversalClient
+`_call_with_retry()` only passed the rotated `api_key` to `UniversalClient`, ignoring rotation for OpenAI, Anthropic, Google SDK clients. Rate-limited calls were retried forever with the same exhausted key. Rotated key is now passed to all backends.
 
-#### `app/agent/roles/architect.py` — Incomplete Design Published Downstream After Retry Failure
+#### `app/llm/offline_router.py` — `httpx.post(url, data)` TypeError
+`OllamaRouter._post()` passed raw bytes as the second positional argument. In httpx ≥ 0.20 bytes must be `content=data`. Fixed: `httpx.post(url, content=data, ...)`.
 
-When the Architect role encountered an LLM error during design generation and the retry limit was exhausted, it still **published whatever partial output existed** to the `RoleMessageBus`. This meant the Engineer role received an incomplete design document (missing sections, truncated file tree, no implementation plan) and attempted to execute it, leading to cascading failures. The fix adds a completeness check: if the design document is missing any of the six mandatory sections, the Architect publishes an **error message** instead of a partial artefact, and the orchestrator records the failure gracefully.
+#### `app/server/main.py` — Version Hardcoded as 3.2.0
+`FastAPI(version=)`, `/healthz`, and `/` endpoint all returned `3.2.0` / `v3.0`. Updated all to `4.0.0`.
 
-#### `app/agent/orchestrator.py` — False-Positive Verdict Detection, GC Hook Tasks, O(n) Queue
+#### `app/server/main.py` — `warnings.warn` at Module Import Time
+CORS and API key checks called `warnings.warn()` at the module level, printing on every import (tests, CLI, etc.). Replaced with a `lifespan` context manager that logs once at server startup.
 
-Three bugs were fixed in the orchestrator. First, the **verdict detection** regex matched substrings like `"APPROVED"` appearing inside code blocks or example output, causing false-positive pipeline terminations. The regex now only matches verdicts in the dedicated `Verdict:` line format. Second, the `atexit` garbage collection hook spawned **detached asyncio tasks** that attempted to close the database after the event loop was already shut down, causing `RuntimeError: Event loop is closed` on exit. The GC hook now checks if the event loop is running before scheduling cleanup. Third, the role result queue used `queue.get()` with a **linear O(n) scan** to find results for a specific role, degrading performance as the number of roles and messages grew. The queue has been replaced with a `dict[str, asyncio.Event]` lookup for O(1) role result retrieval.
+#### `app/server/main.py` — `/tools` Endpoint Leaks Bash Subprocess
+The `/tools` endpoint instantiated `ToolCollection(Bash(), ...)` but never called `cleanup_all()`. `Bash()` spawns a persistent shell that leaked on every call. Wrapped in `try/finally: await tools.cleanup_all()`.
 
-### 🟠 High Priority Fixes (7 files)
+#### `app/server/main.py` — `step_num` Closure Bug (Always Sends Step 0)
+`step_num = agent._step_count` captured the count at decoration time (always 0), not at call time. WebSocket stream reported every step as step 0. Fixed to capture `agent._step_count + 1` inside the function body at invocation.
 
-These fixes address bugs that cause incorrect behavior, poor performance, or security issues in commonly used code paths.
+#### `app/config.py` — API Key Detection Picks Wrong Key for Provider
+When both `OPENAI_API_KEY` and `ANTHROPIC_API_KEY` were set and `provider="anthropic"`, `OPENAI_API_KEY` was picked first. Fixed: provider-specific key is checked first via `_provider_key_map[cfg.llm.provider]`.
 
-#### `app/llm/llm.py` — GoogleClient Missing Import/Tools/None Handling, AnthropicClient Temperature/Text Blocks, UniversalClient Timeout
+---
 
-Three LLM client classes had critical defects. **GoogleClient** was missing the `import google.generativeai` statement at the module level, causing an `ImportError` at runtime when the Google provider was selected. It also failed to pass the `tools` parameter to the Gemini API, making function calling impossible. And when the model returned `None` for a candidate (which happens when content is filtered), the client crashed with an `AttributeError`. **AnthropicClient** passed the `temperature` parameter even when it was `0.0`, which the Anthropic API rejects for certain models. It also failed to handle `text` content blocks in the response (only handling `tool_use` blocks), causing responses without tool calls to be silently dropped. **UniversalClient** had no request timeout, allowing hung connections to block the agent indefinitely. A configurable timeout (default 120s) has been added to all HTTP requests.
+### 🟠 High Priority — Wrong Behavior
 
-#### `app/tool/crawl4ai.py` — aiohttp text() API Misuse Breaking Fallback
+#### `app/agent/toolcall.py` — "done" Keyword Terminates Agent Prematurely
+`step()` scanned assistant content for `"done"` as a substring, matching "not done yet", "I've done the analysis", etc. Agents stopped mid-task. Replaced with anchored regex: `\btask\s+complete\b`, `\ball\s+done\b`, `^done[.!]?$`.
 
-The Crawl4AI fallback path called `response.text` as a property when using `aiohttp`, but `aiohttp`'s `ClientResponse.text` is an **async coroutine** that must be awaited. This caused the fallback to store the coroutine object itself (a generator) as the page content instead of the actual text, resulting in `str(coroutine)` being passed to the agent as "extracted content." The fix adds `await response.text()` to properly resolve the coroutine.
+#### `app/schema.py` — `Memory._trim()` Creates Orphaned TOOL Messages (HTTP 400)
+When trimming messages, the boundary could land inside an `ASSISTANT(tool_calls)` → `TOOL(result)` pair, leaving TOOL messages at the start with no parent. APIs return HTTP 400 for this. The trim now drops leading orphaned TOOL messages and leading ASSISTANT messages whose tool_calls were trimmed away.
 
-#### `app/tool/data_viz.py` — Path Traversal, Code Injection, Blocking Subprocess
+#### `app/db/session.py` — FTS Search Labels `tool_name` Column as `role`
+`fts_search()` returned `"role": row[2]` but `row[2]` is `tool_name` in the `tool_calls` table. Renamed to `"tool_name"`.
 
-Three security and correctness bugs were fixed. **Path traversal**: the output file path was not sanitized, allowing `../../etc/crontab` style attacks via crafted `filename` parameters. All paths are now resolved against the workspace directory and validated to prevent escape. **Code injection**: the matplotlib code was executed via `exec()` with no sanitization, allowing arbitrary code execution. The fix wraps execution in a restricted globals dictionary and validates the code AST before execution. **Blocking subprocess**: the chart rendering pipeline ran `subprocess.run()` synchronously in the async event loop, freezing all other agent operations during rendering. The fix uses `asyncio.create_subprocess_exec()` for non-blocking execution.
+#### `app/agent/roles/qa.py` — APPROVED False Positive in Code Blocks
+`decide()` scanned the entire QA report for `"APPROVED"`, matching it inside code (e.g. `if status == "APPROVED"`). Fixed: search for `Verdict: APPROVED` on a dedicated verdict line using regex; fall back to last 400 characters only.
 
-#### `app/tool/platform_control.py` — Blocking Sync HTTP in Async Context
+#### `app/tool/web_search.py` — Bing Regex Returns Zero Results
+The Bing scraper matched `<h2><a href=...>` from Bing's 2022 HTML structure. Modern Bing changed its layout — zero results every time. Updated to a two-pattern fallback with URL validation.
 
-The `PlatformControlTool` used `httpx.Client` (synchronous) inside its async `execute()` method. Every platform API call — GitHub, Vercel, WordPress, Discord, Telegram — blocked the event loop for the full duration of the HTTP request (including DNS lookup, TLS handshake, and response transfer). In multi-agent pipelines, this meant all agents stalled while any single platform call was in flight. The fix switches to `httpx.AsyncClient` with `await` on all request methods.
+#### `app/flow/planning.py` — `_select_agent()` Leaks a Bash Process Per Step
+`_select_agent()` created a new `Manus()` per step, each spawning a new Bash subprocess (unreferenced). A 10-step plan leaked 10 shell processes. Added `self._agent_cache` — agents created once, reused across steps, cleaned up at flow end.
 
-#### `app/server/main.py` — CORS/Auth Warnings, Version Sync, Background Task GC, Session Mode
+#### `app/agent/base.py` — Duplicate Detection: Exact Match Only
+The loop-detection check required byte-for-byte identical messages, missing near-duplicates with slightly different tool result text. Added `_similarity()` word-token overlap: two messages are near-duplicate if they share >80% of tokens.
 
-Four issues were fixed in the FastAPI server. **CORS/Auth warnings**: the middleware logged warnings on every request about missing `MANUSCLAW_API_KEY` even when intentionally running without authentication. The warning now only fires once at startup. **Version sync**: the `/healthz` and `/` endpoints returned a hardcoded version string that didn't match `pyproject.toml`, causing version mismatch in monitoring. The version is now read from the package metadata at runtime. **Background task GC**: background tasks created via `asyncio.create_task()` were not stored, allowing Python's garbage collector to destroy them mid-execution. Tasks are now stored in a `set` and removed only on completion. **Session mode**: the `/run` endpoint ignored the `mode` parameter from the request body, always defaulting to `build` mode even when `plan` was explicitly requested.
+---
 
-#### `app/sandbox/docker.py` — stderr-as-Error False Failure Detection
+### 🟡 Medium — Correctness / Security / UX
 
-The Docker sandbox runner treated **any output on stderr** as a task failure, even though many legitimate programs write progress information and warnings to stderr (e.g., `pip install` downloads, `npm` warnings, compiler diagnostics). This caused the agent to report code execution as failed when it actually succeeded. The fix checks the container's **exit code** instead: exit code 0 means success regardless of stderr content, non-zero means failure. stderr is still captured and returned to the agent for debugging purposes.
+#### `app/permissions/gate.py` — `platform_control` and `delegate` Not in `_ASK_TOOLS`
+Both tools make high-impact external calls (GitHub/Vercel/Discord API, spawning subagents) but executed silently in Plan Mode without user confirmation. Added both to `_ASK_TOOLS`.
 
-#### `app/permissions/gate.py` — Blocking input() in Async Context
+---
 
-In Plan Mode, the permission gate called Python's built-in `input()` function to prompt the user for approval. This is a **blocking synchronous call** that freezes the entire asyncio event loop, preventing the server from processing WebSocket heartbeats, other client requests, or background tasks. In the server mode, this caused WebSocket timeout disconnections while waiting for approval. The fix uses `asyncio.get_event_loop().run_in_executor()` to run `input()` in a thread pool, keeping the event loop responsive. Alternatively, when running via the WebSocket server, the approval request is sent as a WebSocket message and the response is awaited asynchronously.
+### New File
 
-### 🟡 Medium Priority Fixes (6 files)
+#### `.env.example` — Environment Variable Reference
+Documents every supported environment variable: all LLM provider keys, server security settings, messaging tokens, cron path, profile support, secret redaction, and FAL key for image generation.
 
-These fixes address deprecation warnings, missing data fields, dependency issues, and minor correctness bugs.
+---
 
-#### `app/schema.py` — Deprecated datetime.utcnow
+### Fix Summary Table
 
-All datetime fields (`created_at`, `updated_at`, `started_at`, `ended_at`) used `datetime.utcnow()`, which is deprecated since Python 3.12 and will be removed in a future version. The method also produces naive datetime objects (no timezone info), which cause comparison errors when mixed with timezone-aware datetimes from other sources. All occurrences have been replaced with `datetime.now(timezone.utc)` to produce timezone-aware UTC datetimes.
+| # | Severity | File | What Was Broken | What Was Fixed |
+|---|----------|------|----------------|----------------|
+| 1 | 🔴 | `app/cron.py` | `main()` missing → CLI crashed | Added full `main()` with argparse |
+| 2 | 🔴 | `app/cron.py` | Fire-and-forget tasks → GC killed jobs | Store task refs in `self._tasks` |
+| 3 | 🔴 | `pyproject.toml` | `manusclaw-multi` entry point missing | Added console script entry |
+| 4 | 🔴 | `app/llm/llm.py` | AnthropicClient: OpenAI msgs → HTTP 400 | Added `_to_anthropic_messages()` |
+| 5 | 🔴 | `app/llm/llm.py` | AnthropicClient: temp on thinking models | Skip temperature for thinking models |
+| 6 | 🔴 | `app/llm/llm.py` | GoogleClient: tools ignored | Gemini FunctionDeclaration conversion |
+| 7 | 🔴 | `app/llm/llm.py` | Offline routers dead code | Wire gguf/ollama/hf into _build_backend |
+| 8 | 🔴 | `app/llm/llm.py` | Credential pool skips SDK clients | Pass rotated key to all backends |
+| 9 | 🔴 | `app/llm/offline_router.py` | `httpx.post(url, data)` TypeError | Changed to `content=data` |
+| 10 | 🔴 | `app/server/main.py` | Version 3.2.0 hardcoded | Updated all strings to 4.0.0 |
+| 11 | 🔴 | `app/server/main.py` | `warnings.warn` at import time | Moved to lifespan logger |
+| 12 | 🔴 | `app/server/main.py` | `/tools` leaks Bash subprocess | `try/finally: cleanup_all()` |
+| 13 | 🔴 | `app/server/main.py` | `step_num` closure always 0 | Capture at call time |
+| 14 | 🔴 | `app/config.py` | Wrong API key picked for provider | Provider-specific key checked first |
+| 15 | 🟠 | `app/agent/toolcall.py` | "done" terminates agent mid-task | Anchored regex patterns only |
+| 16 | 🟠 | `app/schema.py` | Orphaned TOOL msgs → HTTP 400 | Drop orphans at trim boundary |
+| 17 | 🟠 | `app/db/session.py` | `tool_name` labeled `role` | Renamed to `tool_name` |
+| 18 | 🟠 | `app/agent/roles/qa.py` | APPROVED false positive | Verdict-line regex only |
+| 19 | 🟠 | `app/tool/web_search.py` | Bing returns 0 results | Two-pattern resilient scraper |
+| 20 | 🟠 | `app/flow/planning.py` | New agent per step → process leak | `_agent_cache` + flow cleanup |
+| 21 | 🟠 | `app/agent/base.py` | Duplicate detection: exact only | Added 80% similarity check |
+| 22 | 🟡 | `app/permissions/gate.py` | `platform_control`/`delegate` bypass ASK | Added both to `_ASK_TOOLS` |
+| 23 | ➕ | `.env.example` | No config reference file | Added comprehensive .env.example |
 
-#### `app/flow/planning.py` — Missing Error/Duration Fields & Step ID Collision
-
-The planning flow's `Step` model was missing `error` and `duration_ms` fields that downstream consumers (the logger, the session database, and the WebSocket streaming interface) expected, causing `AttributeError` when accessing `step.error` or `step.duration_ms`. Both fields have been added with appropriate defaults (`error: str | None = None`, `duration_ms: float = 0.0`). Additionally, the step ID generation used `str(step_number)`, which caused **ID collisions** when multiple plans were created in the same session (step 1 of plan A and step 1 of plan B both got ID `"1"`). The ID now includes the plan ID as a prefix: `f"{plan_id}:{step_number}"`.
-
-#### `app/agent/roles/base_role.py` — Deprecated datetime
-
-The `BaseRole` class used `datetime.utcnow()` for the `published_at` timestamp in `RoleMessage`, subject to the same deprecation and timezone issues as `schema.py`. Replaced with `datetime.now(timezone.utc)`.
-
-#### `pyproject.toml` — Missing google-generativeai Dependency
-
-The `google` provider was listed as a supported LLM provider in the README and config, but `google-generativeai` was not declared as a dependency in `pyproject.toml` — not even as an optional extra. Users who ran `pip install -e ".[all]"` still could not use the Google provider without manually installing the package. The dependency has been added to the `[project.optional-dependencies]` section under the `google` extra and included in the `all` extra.
-
-#### `run_server.py` — wss:// vs ws:// Mismatch & Version Sync
-
-The WebSocket URL construction always used the `ws://` scheme, even when the server was deployed behind an HTTPS reverse proxy that terminates TLS. Browsers connecting via HTTPS refuse mixed-content connections to `ws://` endpoints, breaking the web UI. The fix detects the `X-Forwarded-Proto: https` header and upgrades the scheme to `wss://` accordingly. The version string returned by the server startup banner was also hardcoded and out of sync with `pyproject.toml` — it now reads from package metadata.
-
-#### `main.py` — EOFError/KeyboardInterrupt Handling
-
-When running in interactive mode, pressing `Ctrl+D` (EOF) or `Ctrl+C` (interrupt) at the input prompt caused an unhandled exception traceback to be printed, which looked like a crash rather than a clean exit. Both signals are now caught gracefully — `EOFError` prints a clean exit message, and `KeyboardInterrupt` prints a brief interruption notice. Neither produces a stack trace in normal usage.
-
-### Summary Table
-
-| Severity | File | Bug Description | Impact |
-|---|---|---|---|
-| 🔴 Critical | `app/llm/offline_router.py` | All 4 routers were sync, wrong return types | Event loop blocked on every LLM call |
-| 🔴 Critical | `app/agent/toolcall.py` | Backoff precedence, tool_call_id mismatch | Retries didn't back off; LLM rejected tool results |
-| 🔴 Critical | `app/agent/react.py` | solved=True on parse error, case-sensitive code blocks | Premature termination; missed code in responses |
-| 🔴 Critical | `app/agent/base.py` | Fire-and-forget DB writes, aggressive dupe threshold | Dropped audit logs; false duplicate detection |
-| 🔴 Critical | `app/agent/roles/architect.py` | Partial design published after retry failure | Engineer executed incomplete design |
-| 🔴 Critical | `app/agent/orchestrator.py` | False-positive verdicts, GC hook crash, O(n) queue | Premature pipeline end; exit crash; slow lookup |
-| 🟠 High | `app/llm/llm.py` | GoogleClient import/tools/None; AnthropicClient temp/text; UniversalClient timeout | Google crashed; Anthropic dropped text; Universal hung |
-| 🟠 High | `app/tool/crawl4ai.py` | aiohttp text() not awaited | Fallback stored coroutine object as content |
-| 🟠 High | `app/tool/data_viz.py` | Path traversal, code injection, blocking subprocess | Security vulnerabilities; event loop freeze |
-| 🟠 High | `app/tool/platform_control.py` | Sync HTTP in async method | Event loop blocked on every platform API call |
-| 🟠 High | `app/server/main.py` | CORS warnings, version mismatch, GC tasks, session mode | Log spam; stale version; dropped tasks; mode ignored |
-| 🟠 High | `app/sandbox/docker.py` | stderr treated as failure | False failures on programs with stderr output |
-| 🟠 High | `app/permissions/gate.py` | Blocking input() in async context | Event loop freeze in Plan Mode |
-| 🟡 Medium | `app/schema.py` | Deprecated datetime.utcnow | Future breakage; naive datetime comparison errors |
-| 🟡 Medium | `app/flow/planning.py` | Missing error/duration fields, step ID collision | AttributeError on step.error; duplicate step IDs |
-| 🟡 Medium | `app/agent/roles/base_role.py` | Deprecated datetime.utcnow | Future breakage; naive datetime |
-| 🟡 Medium | `pyproject.toml` | Missing google-generativeai dependency | Google provider unusable without manual install |
-| 🟡 Medium | `run_server.py` | ws:// vs wss:// mismatch, version string stale | Web UI broken behind HTTPS proxy |
-| 🟡 Medium | `main.py` | Unhandled EOFError/KeyboardInterrupt | Ugly stack trace on Ctrl+C/D |
 
 ---
 

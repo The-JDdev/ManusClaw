@@ -33,10 +33,29 @@ async def _search_bing(query: str, max_results: int) -> list[dict]:
                 html = await resp.text()
         import re
         results = []
-        for m in re.finditer(r'<h2><a href="([^"]+)"[^>]*>(.*?)</a>', html):
+        # FIX: Bing's HTML structure changed — use multiple patterns for resilience.
+        # Pattern 1: Modern Bing — cite elements with data-url or href
+        for m in re.finditer(
+            r'<h2[^>]*>\s*<a[^>]+href="([^"]+)"[^>]*>(.*?)</a>', html, re.DOTALL
+        ):
             if len(results) >= max_results:
                 break
-            results.append({"title": re.sub(r"<[^>]+>", "", m.group(2)), "url": m.group(1), "snippet": ""})
+            url = m.group(1)
+            title = re.sub(r"<[^>]+>", "", m.group(2)).strip()
+            if url.startswith("http") and title and "/search?" not in url:
+                results.append({"title": title, "url": url, "snippet": ""})
+        # Pattern 2: Fallback — li.b_algo result blocks
+        if not results:
+            for m in re.finditer(
+                r'<li[^>]*class="b_algo"[^>]*>.*?<h2[^>]*>.*?href="([^"]+)"[^>]*>(.*?)</h2>',
+                html, re.DOTALL
+            ):
+                if len(results) >= max_results:
+                    break
+                url = m.group(1)
+                title = re.sub(r"<[^>]+>", "", m.group(2)).strip()
+                if url.startswith("http") and title:
+                    results.append({"title": title, "url": url, "snippet": ""})
         return results
     except Exception as e:
         logger.debug(f"Bing search failed: {e}")

@@ -66,10 +66,24 @@ Your output MUST include:
     # ──────────────────────────────────────────────────────────────────────────
 
     def decide(self, output: str) -> tuple[RoleDecision, str]:
-        upper = output.upper()
-        if "REWORK REQUIRED" in upper:
+        # FIX: Use explicit "Verdict:" line to avoid false positives when "APPROVED"
+        # appears in code, comments, or test output (e.g. if status == "APPROVED").
+        import re
+        verdict_match = re.search(
+            r"(?:^|\n)\s*Verdict\s*:\s*(APPROVED|REWORK REQUIRED)",
+            output,
+            re.IGNORECASE,
+        )
+        if verdict_match:
+            verdict = verdict_match.group(1).upper()
+            if "REWORK" in verdict:
+                return RoleDecision.ESCALATE, "QA verdict is REWORK REQUIRED — defects found."
+            return RoleDecision.PROCEED, ""
+        # Fallback: check last 400 chars only (summary section) to cut false positives
+        tail = output[-400:].upper()
+        if "REWORK REQUIRED" in tail:
             return RoleDecision.ESCALATE, "QA verdict is REWORK REQUIRED — defects found."
-        if "APPROVED" in upper:
+        if "APPROVED" in tail:
             return RoleDecision.PROCEED, ""
         # Ambiguous — treat as rework to be safe
         return RoleDecision.ESCALATE, "QA verdict is unclear — defaulting to REWORK REQUIRED."

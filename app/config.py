@@ -182,8 +182,19 @@ class Config:
 
         # Overlay environment variables
         if not cfg.llm.api_key:
+            # FIX: Pick provider-specific env var first so that having both
+            # OPENAI_API_KEY and ANTHROPIC_API_KEY doesn't incorrectly pick
+            # OPENAI_API_KEY when provider="anthropic".
+            _provider_key_map = {
+                "openai":    os.getenv("OPENAI_API_KEY"),
+                "anthropic": os.getenv("ANTHROPIC_API_KEY"),
+                "mistral":   os.getenv("MISTRAL_API_KEY"),
+                "google":    os.getenv("GOOGLE_API_KEY"),
+                "gemini":    os.getenv("GOOGLE_API_KEY"),
+            }
             cfg.llm.api_key = (
-                os.getenv("OPENAI_API_KEY")
+                _provider_key_map.get(cfg.llm.provider)
+                or os.getenv("OPENAI_API_KEY")
                 or os.getenv("ANTHROPIC_API_KEY")
                 or os.getenv("MISTRAL_API_KEY")
                 or os.getenv("LLM_API_KEY")

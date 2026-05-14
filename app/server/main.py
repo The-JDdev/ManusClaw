@@ -31,10 +31,34 @@ from app.db.session import SessionDB
 from app.logger import logger
 from app.permissions.gate import AgentMode
 
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def _lifespan(application: FastAPI):
+    """FIX: Startup/shutdown lifecycle — log warnings at startup, clean up on shutdown."""
+    if not _API_KEY:
+        logger.warning(
+            "MANUSCLAW_API_KEY not set — all endpoints are UNAUTHENTICATED. "
+            "Set MANUSCLAW_API_KEY in production."
+        )
+    logger.info("ManusClaw Agent Server v4.0 started.")
+    application.state.background_tasks = set()
+    yield
+    # Cleanup: cancel any still-running background agent tasks
+    bg = getattr(application.state, "background_tasks", set())
+    if bg:
+        logger.info(f"[Server] Cancelling {len(bg)} background task(s) on shutdown.")
+        for t in list(bg):
+            t.cancel()
+        import asyncio as _asyncio
+        await _asyncio.gather(*bg, return_exceptions=True)
+    logger.info("ManusClaw Agent Server shut down cleanly.")
+
 app = FastAPI(
     title="ManusClaw Agent Server",
     description="Autonomous AI agent engine by The-JDdev (SHS Shobuj)",
-    version="3.2.0",  # Fix: sync with pyproject.toml
+    version="4.0.0",
+    lifespan=_lifespan,
 )
 
 _raw_origins = os.getenv("MANUSCLAW_ALLOWED_ORIGINS", "")
@@ -54,11 +78,9 @@ if _allowed_origins:
     )
 else:
     # Fix: warn about open CORS in production
-    import warnings
-    warnings.warn(
+    logger.warning(
         "MANUSCLAW_ALLOWED_ORIGINS not set — CORS allows all origins. "
-        "Set this env var in production to restrict access.",
-        stacklevel=2,
+        "Set MANUSCLAW_ALLOWED_ORIGINS in production to restrict access."
     )
     app.add_middleware(
         CORSMiddleware,
@@ -71,14 +93,7 @@ else:
 _API_KEY = os.getenv("MANUSCLAW_API_KEY", "")
 _api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
-# Fix: warn if API key not set
-if not _API_KEY:
-    import warnings
-    warnings.warn(
-        "MANUSCLAW_API_KEY not set — all endpoints are UNAUTHENTICATED. "
-        "Set this env var in production to require API key authentication.",
-        stacklevel=2,
-    )
+# API key authentication
 
 
 async def require_api_key(key: Optional[str] = Depends(_api_key_header)) -> None:
@@ -137,7 +152,9 @@ class StreamingManus:
         original_step = agent.step
 
         async def patched_step():
-            step_num = agent._step_count
+            # FIX: capture current step count BEFORE calling original_step
+            # (original_step increments _step_count at the end)
+            step_num = agent._step_count + 1
             await manager.send(self.session_id, {
                 "type": "step_start",
                 "step": step_num,
@@ -187,12 +204,12 @@ class RunResponse(BaseModel):
 
 @app.get("/healthz")
 async def healthz():
-    return {"status": "ok", "version": "3.2.0", "agent": "ManusClaw"}  # Fix: sync version
+    return {"status": "ok", "version": "4.0.0", "agent": "ManusClaw"}
 
 
 @app.get("/")
 async def root():
-    return {"message": "ManusClaw Agent Server v3.0 — connect via /ws/<session_id>"}
+    return {"message": "ManusClaw Agent Server v4.0 — connect via /ws/<session_id>"}
 
 
 @app.post("/run", response_model=RunResponse, dependencies=[Depends(require_api_key)])
@@ -260,9 +277,13 @@ async def list_tools():
     from app.tool.web_search import WebSearch
     from app.tool.str_replace_editor import StrReplaceEditor
     from app.tool.terminate import Terminate
+    # FIX: cleanup() must be called to terminate the Bash persistent subprocess
     tools = ToolCollection(PythonExecute(), Bash(), WebSearch(), StrReplaceEditor(), Terminate())
-    schemas = tools.to_openai_schemas()
-    return {"tools": [{"name": s["function"]["name"], "description": s["function"]["description"]} for s in schemas]}
+    try:
+        schemas = tools.to_openai_schemas()
+        return {"tools": [{"name": s["function"]["name"], "description": s["function"]["description"]} for s in schemas]}
+    finally:
+        await tools.cleanup_all()
 
 
 @app.websocket("/ws/{session_id}")

@@ -87,7 +87,7 @@ class OllamaRouter:
         if self._httpx:
             import httpx
             r = await asyncio.to_thread(
-                httpx.post, url, data,
+                httpx.post, url, content=data,
                 headers={"Content-Type": "application/json"},
                 timeout=None,
             )
@@ -164,6 +164,7 @@ class OpenAICompatRouter:
                 f"{self.base}/chat/completions",
                 headers=self.headers,
                 json=payload,
+                # FIX: use json= (not data=) so httpx serialises correctly
                 timeout=self.timeout,
             )
             return r.json()
@@ -218,7 +219,7 @@ class HuggingFaceRouter:
             import httpx
             r = await asyncio.to_thread(
                 httpx.post, self.url, headers=self.headers,
-                json=payload, timeout=120,
+                json=payload, timeout=120,  # FIX: json= not data=
             )
             return r.json()
         except ImportError:

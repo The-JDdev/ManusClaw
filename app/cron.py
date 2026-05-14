@@ -62,6 +62,7 @@ class CronScheduler:
     def __init__(self) -> None:
         self._jobs: dict[str, CronJob] = {}
         self._running = False
+        self._tasks: set[asyncio.Task] = set()
         self._load_jobs()
 
     def _load_jobs(self) -> None:
@@ -129,7 +130,10 @@ class CronScheduler:
         while self._running:
             due = [j for j in self._jobs.values() if j.is_due]
             for job in due:
-                asyncio.create_task(self._run_job(job, output_callback))
+                # FIX: store task reference to prevent GC mid-execution
+                task = asyncio.create_task(self._run_job(job, output_callback))
+                self._tasks.add(task)
+                task.add_done_callback(self._tasks.discard)
             await asyncio.sleep(30)
 
     async def _run_job(self, job: CronJob, callback: Optional[Callable]) -> None:
@@ -155,3 +159,76 @@ class CronScheduler:
     def stop(self) -> None:
         self._running = False
         logger.info("[Cron] Scheduler stopped")
+
+
+def main() -> None:
+    """
+    Entry point for manusclaw-cron command.
+
+    Usage:
+      manusclaw-cron --run                          # Start scheduler loop
+      manusclaw-cron --list                         # List all jobs
+      manusclaw-cron --add ID NAME EXPR PROMPT      # Add a new job
+      manusclaw-cron --remove JOB_ID                # Remove a job
+      manusclaw-cron --trigger JOB_ID               # Force-trigger a job now
+    """
+    import argparse
+    import sys
+
+    parser = argparse.ArgumentParser(
+        description="ManusClaw Cron Scheduler",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  manusclaw-cron --run
+  manusclaw-cron --list
+  manusclaw-cron --add daily-report "Daily Report" "0 9 * * *" "Summarise today's news"
+  manusclaw-cron --remove daily-report
+  manusclaw-cron --trigger daily-report
+        """,
+    )
+    parser.add_argument("--run",     action="store_true", help="Start the scheduler loop")
+    parser.add_argument("--list",    action="store_true", help="List all scheduled jobs")
+    parser.add_argument("--add",     nargs=4, metavar=("ID", "NAME", "EXPR", "PROMPT"),
+                        help="Add a new job")
+    parser.add_argument("--remove",  metavar="JOB_ID", help="Remove a job by ID")
+    parser.add_argument("--trigger", metavar="JOB_ID", help="Force-trigger a job immediately")
+
+    args = parser.parse_args()
+
+    scheduler = CronScheduler()
+
+    if args.list:
+        jobs = scheduler.list_jobs()
+        if not jobs:
+            print("No scheduled jobs.")
+            return
+        print(f"{'ID':<20} {'NAME':<24} {'CRON':<16} {'RUNS':>5}  {'ENABLED'}")
+        print("-" * 72)
+        for j in jobs:
+            status = "yes" if j.enabled else "no"
+            print(f"{j.job_id:<20} {j.name:<24} {j.cron_expr:<16} {j.run_count:>5}  {status}")
+        return
+
+    if args.add:
+        job_id, name, expr, prompt = args.add
+        job = scheduler.add_job(job_id, name, expr, prompt)
+        print(f"Added job '{job_id}'. Next run at: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(job.next_run))}")
+        return
+
+    if args.remove:
+        removed = scheduler.remove_job(args.remove)
+        print(f"Removed job '{args.remove}'." if removed else f"Job '{args.remove}' not found.")
+        return
+
+    if args.trigger:
+        job = scheduler.trigger_job(args.trigger)
+        print(f"Job '{args.trigger}' scheduled to run on next tick." if job else f"Job '{args.trigger}' not found.")
+
+    # Default: run the scheduler (also triggered by --run)
+    try:
+        asyncio.run(scheduler.run_forever())
+    except KeyboardInterrupt:
+        scheduler.stop()
+        print("\n[Cron] Stopped.")
+        sys.exit(0)

@@ -41,6 +41,7 @@ all = ["manusclaw[mistral,bedrock,google,browser,viz]"]
 manusclaw = "app.cli:main"
 manusclaw-server = "app.server.main:serve"
 manusclaw-cron = "app.cron:main"
+manusclaw-multi = "app.multi_agent:run_cli"
 
 [tool.setuptools.packages.find]
 where = ["."]

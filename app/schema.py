@@ -108,7 +108,22 @@ class Memory(BaseModel):
         system = [m for m in self.messages if m.role == Role.SYSTEM]
         rest = [m for m in self.messages if m.role != Role.SYSTEM]
         keep = max(self.max_messages - len(system), 0)
-        self.messages = system + rest[-keep:] if keep else system
+        if not keep:
+            self.messages = system
+            return
+        trimmed = list(rest[-keep:])
+        # FIX: Prevent orphaned TOOL messages at the start of the trimmed window.
+        # TOOL messages must follow an ASSISTANT message with tool_calls.
+        # If the trim boundary cuts into the middle of an assistant+tool pair,
+        # the API returns HTTP 400 "role: tool must follow assistant with tool_calls".
+        while trimmed and trimmed[0].role == Role.TOOL:
+            trimmed.pop(0)
+        # Also drop ASSISTANT messages whose tool_calls were trimmed away
+        while (trimmed and trimmed[0].role == Role.ASSISTANT
+               and trimmed[0].tool_calls
+               and (len(trimmed) < 2 or trimmed[1].role != Role.TOOL)):
+            trimmed.pop(0)
+        self.messages = system + trimmed
 
     def to_list(self) -> list[dict[str, Any]]:
         return [m.to_dict() for m in self.messages]

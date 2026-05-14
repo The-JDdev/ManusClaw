@@ -195,15 +195,93 @@ class AnthropicClient:
         self.max_tokens: int = cfg.max_tokens
         self.temperature: float = cfg.temperature
 
+    @staticmethod
+    def _to_anthropic_messages(messages: list[dict]) -> list[dict]:
+        """
+        FIX: Convert OpenAI-format messages to Anthropic API format.
+        - OpenAI role='tool' → Anthropic role='user' with tool_result content block
+        - OpenAI assistant with tool_calls → Anthropic assistant with tool_use blocks
+        - Consecutive same-role messages are merged (Anthropic requires alternating)
+        """
+        import json as _json
+        converted: list[dict] = []
+        for msg in messages:
+            role = msg.get("role", "")
+            content = msg.get("content")
+            if role == "system":
+                continue
+            if role == "assistant":
+                tool_calls = msg.get("tool_calls") or []
+                if tool_calls:
+                    blocks: list[dict] = []
+                    if content:
+                        blocks.append({"type": "text", "text": str(content)})
+                    for tc in tool_calls:
+                        try:
+                            inp = _json.loads(tc["function"].get("arguments") or "{}")
+                        except Exception:
+                            inp = {}
+                        blocks.append({
+                            "type": "tool_use",
+                            "id": tc.get("id", ""),
+                            "name": tc["function"].get("name", ""),
+                            "input": inp,
+                        })
+                    converted.append({"role": "assistant", "content": blocks})
+                else:
+                    converted.append({"role": "assistant", "content": content or ""})
+            elif role == "tool":
+                converted.append({
+                    "role": "user",
+                    "content": [{
+                        "type": "tool_result",
+                        "tool_use_id": msg.get("tool_call_id", ""),
+                        "content": str(content or ""),
+                    }],
+                })
+            else:
+                converted.append({"role": "user", "content": content or ""})
+        # Merge consecutive same-role messages (Anthropic requires alternating)
+        merged: list[dict] = []
+        for msg in converted:
+            if not merged:
+                merged.append({"role": msg["role"], "content": msg["content"]})
+                continue
+            prev = merged[-1]
+            if prev["role"] == msg["role"]:
+                pc, nc = prev["content"], msg["content"]
+                if isinstance(pc, list) and isinstance(nc, list):
+                    pc.extend(nc)
+                elif isinstance(pc, list):
+                    pc.append({"type": "text", "text": str(nc)})
+                elif isinstance(nc, list):
+                    merged[-1] = {"role": msg["role"], "content": [{"type": "text", "text": str(pc)}, *nc]}
+                else:
+                    prev["content"] = str(pc) + "
+
+" + str(nc)
+            else:
+                merged.append({"role": msg["role"], "content": msg["content"]})
+        return merged
+
     async def chat(self, messages: list[dict[str, Any]], tools: Optional[list[dict[str, Any]]] = None,
-                   **_: Any) -> dict[str, Any]:
+                   api_key: Optional[str] = None) -> dict[str, Any]:
         import json
+        from anthropic import AsyncAnthropic
+        # FIX: Support credential pool key rotation
+        client = AsyncAnthropic(api_key=api_key) if api_key else self._c
         system = next((m["content"] for m in messages if m["role"] == "system"), None)
         conv = [m for m in messages if m["role"] != "system"]
+        # FIX: Convert OpenAI-format messages to Anthropic format
+        anthropic_messages = self._to_anthropic_messages(conv)
+        # FIX: Extended thinking models require temperature=1 (not arbitrary values)
+        is_extended_thinking = "claude-3-7" in self.model or "claude-sonnet-4" in self.model
         kwargs: dict[str, Any] = dict(
             model=self.model, max_tokens=self.max_tokens,
-            temperature=self.temperature, messages=conv,
+            messages=anthropic_messages,
         )
+        if not is_extended_thinking:
+            kwargs["temperature"] = self.temperature
         if system:
             kwargs["system"] = system
         if tools:
@@ -215,7 +293,7 @@ class AnthropicClient:
                 }
                 for t in tools
             ]
-        resp = await self._c.messages.create(**kwargs)
+        resp = await client.messages.create(**kwargs)
         content_parts: list[str] = []
         tool_calls: list[dict[str, Any]] = []
         for block in resp.content:
@@ -258,17 +336,97 @@ class GoogleClient:
         self.max_tokens: int = cfg.max_tokens
         self.temperature: float = cfg.temperature
 
+    @staticmethod
+    def _to_google_history(messages: list[dict]) -> tuple:
+        """FIX: Convert OpenAI-format messages to Google genai chat history format."""
+        system_txt = None
+        history = []
+        for msg in messages:
+            role = msg.get("role", "")
+            content = msg.get("content") or ""
+            if role == "system":
+                system_txt = content
+            elif role == "user":
+                history.append({"role": "user", "parts": [content]})
+            elif role == "assistant":
+                history.append({"role": "model", "parts": [content]})
+            # tool messages: skip (not supported in simple chat history)
+        return system_txt, history
+
     async def chat(self, messages: list[dict[str, Any]], tools: Optional[list[dict[str, Any]]] = None,
                    **_: Any) -> dict[str, Any]:
-        import google.generativeai as genai
-        model = genai.GenerativeModel(self._model_name)
-        prompt = "\n".join(f"{m['role'].upper()}: {m.get('content') or ''}" for m in messages)
+        import time as _time
+        import json as _json
+        genai = self._genai
+        system_txt, history = self._to_google_history(messages)
+        model_kwargs: dict[str, Any] = {"model_name": self._model_name}
+        if system_txt:
+            model_kwargs["system_instruction"] = system_txt
+        # FIX: Convert OpenAI tools to Gemini function declarations
+        gemini_tools = None
+        if tools:
+            try:
+                func_decls = []
+                for t in tools:
+                    fn = t.get("function", {})
+                    params = fn.get("parameters", {})
+                    props = {}
+                    for k, v in params.get("properties", {}).items():
+                        props[k] = genai.protos.Schema(
+                            type=genai.protos.Type.STRING,
+                            description=v.get("description", "") if isinstance(v, dict) else "",
+                        )
+                    func_decls.append(genai.protos.FunctionDeclaration(
+                        name=fn.get("name", ""),
+                        description=fn.get("description", ""),
+                        parameters=genai.protos.Schema(
+                            type=genai.protos.Type.OBJECT,
+                            properties=props,
+                            required=params.get("required", []),
+                        ),
+                    ))
+                gemini_tools = [genai.protos.Tool(function_declarations=func_decls)]
+            except Exception as e:
+                logger.warning(f"[GoogleClient] Tool conversion failed: {e}. Proceeding without tools.")
+                gemini_tools = None
+        if gemini_tools:
+            model_kwargs["tools"] = gemini_tools
+        model = genai.GenerativeModel(**model_kwargs)
         gen_config = genai.types.GenerationConfig(
             max_output_tokens=self.max_tokens, temperature=self.temperature
         )
-        resp = await asyncio.to_thread(model.generate_content, prompt, generation_config=gen_config)
-        content = getattr(resp, "text", None) or ""
-        return {"choices": [{"message": {"role": "assistant", "content": content, "tool_calls": None}}]}
+        tool_calls_result: list[dict[str, Any]] = []
+        if len(history) > 1:
+            chat = model.start_chat(history=history[:-1])
+            last_part = history[-1]["parts"][0] if history else ""
+            resp = await asyncio.to_thread(chat.send_message, last_part, generation_config=gen_config)
+        else:
+            prompt = history[0]["parts"][0] if history else ""
+            resp = await asyncio.to_thread(model.generate_content, prompt, generation_config=gen_config)
+        content = ""
+        try:
+            content = resp.text or ""
+        except Exception:
+            pass
+        # FIX: Extract function calls
+        try:
+            for part in resp.parts:
+                if hasattr(part, "function_call") and part.function_call:
+                    fc = part.function_call
+                    tool_calls_result.append({
+                        "id": f"gemini-{fc.name}-{int(_time.time())}",
+                        "type": "function",
+                        "function": {"name": fc.name, "arguments": _json.dumps(dict(fc.args))},
+                    })
+        except Exception:
+            pass
+        return {
+            "choices": [{"message": {
+                "role": "assistant",
+                "content": content or None,
+                "tool_calls": tool_calls_result or None,
+            }}]
+        }
 
 
 class LLM:
@@ -300,7 +458,29 @@ class LLM:
         if provider == "mock":
             logger.info("Using MockLLM")
             return MockLLM()
-        universal_triggers = {"universal", "openrouter", "ollama", "lmstudio", "openai-compat", "groq", "together", "perplexity"}
+        # FIX: Wire in offline/local routers
+        if provider == "gguf":
+            from app.llm.offline_router import GGUFRouter
+            model_path = cfg.llm.model or ""
+            if not model_path:
+                raise ValueError("GGUF provider requires llm.model = '/path/to/model.gguf'")
+            logger.info(f"Using GGUF offline router: {model_path}")
+            return GGUFRouter(model_path=model_path, n_ctx=4096)
+        if provider == "ollama":
+            from app.llm.offline_router import OllamaRouter
+            base_url = cfg.llm.base_url or "http://localhost:11434"
+            model = cfg.llm.model or "llama3.2:3b"
+            logger.info(f"Using Ollama router: {base_url} model={model}")
+            return OllamaRouter(model=model, base_url=base_url)
+        if provider in ("huggingface", "hf"):
+            from app.llm.offline_router import HuggingFaceRouter
+            logger.info(f"Using HuggingFace router: {cfg.llm.model}")
+            return HuggingFaceRouter(
+                model=cfg.llm.model or "",
+                hf_token=cfg.llm.api_key or "",
+                endpoint_url=cfg.llm.base_url,
+            )
+        universal_triggers = {"universal", "openrouter", "lmstudio", "openai-compat", "groq", "together", "perplexity"}
         if cfg.llm.base_url and (not provider or provider in universal_triggers):
             logger.info(f"Universal LLM — {cfg.llm.base_url} model={cfg.llm.model}")
             return UniversalClient(
@@ -356,7 +536,8 @@ class LLM:
             try:
                 api_key: Optional[str] = cred.api_key if cred else None
                 chat_kwargs: dict[str, Any] = {}
-                if api_key and isinstance(self._backend, UniversalClient):
+                # FIX: Pass rotated api_key to ALL backends, not just UniversalClient
+                if api_key:
                     chat_kwargs["api_key"] = api_key
                 result: dict[str, Any] = await self._backend.chat(messages, tools=tools, **chat_kwargs)
                 if cred and self._pool:

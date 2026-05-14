@@ -263,7 +263,17 @@ tool or different arguments — DO NOT repeat the same failing call.
             if m.role == Role.ASSISTANT and m.content:
                 last_content = m.content.lower()
                 break
-        if any(kw in last_content for kw in ["task complete", "all done", "finished", "done"]):
+        # FIX: "done" was too broad — matched "not done yet", "halfway done",
+        # "I've done the analysis", etc. Use anchored patterns instead.
+        import re as _re
+        _DONE_PATTERNS = [
+            r"\btask\s+(?:is\s+)?complete\b",
+            r"\ball\s+done\b",
+            r"\btask\s+finished\b",
+            r"(?:^|\n)done[.!]?\s*$",   # Only if entire content is just "done."
+            r"\bwork\s+is\s+complete\b",
+        ]
+        if any(_re.search(p, last_content) for p in _DONE_PATTERNS):
             self.state = AgentState.FINISHED
 
         return result

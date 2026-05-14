@@ -350,10 +350,19 @@ class PlanningFlow:
     # ──────────────────────────────────────────────────────────────────────────
 
     def _select_agent(self, step: PlanStep, prefer_safe: bool = False):
+        """
+        FIX: Cache agent instances instead of creating a new one per step.
+        Creating Manus() per step spawns a new Bash subprocess each time,
+        leaking file descriptors and memory for the duration of the flow.
+        Agents are reused across steps and cleaned up when the flow ends.
+        """
         from app.agent.manus import Manus
         from app.agent.data_analysis import DataAnalysisAgent
 
-        cfg       = Config.get()
+        if not hasattr(self, "_agent_cache"):
+            self._agent_cache: dict = {}
+
+        cfg = Config.get()
         desc_lower = step.description.lower()
 
         if (
@@ -362,9 +371,13 @@ class PlanningFlow:
             and any(kw in desc_lower for kw in
                     ["chart", "graph", "plot", "analysis", "visuali", "data"])
         ):
-            return DataAnalysisAgent()
+            if "data_analysis" not in self._agent_cache:
+                self._agent_cache["data_analysis"] = DataAnalysisAgent()
+            return self._agent_cache["data_analysis"]
 
-        return Manus()
+        if "manus" not in self._agent_cache:
+            self._agent_cache["manus"] = Manus()
+        return self._agent_cache["manus"]
 
     # ──────────────────────────────────────────────────────────────────────────
     # Summary formatting

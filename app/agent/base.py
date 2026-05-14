@@ -265,10 +265,26 @@ class BaseAgent(ABC):
             m.content for m in self.memory.messages[-6:]
             if m.role == Role.ASSISTANT and m.content
         ]
-        if len(msgs) >= self._duplicate_threshold:
-            last = msgs[-self._duplicate_threshold:]
-            return len(set(last)) == 1
-        return False
+        if len(msgs) < self._duplicate_threshold:
+            return False
+        last = msgs[-self._duplicate_threshold:]
+        # Exact duplicate check
+        if len(set(last)) == 1:
+            return True
+        # FIX: Add similarity check — detect near-duplicate messages (regression fix).
+        # Two messages are "near-duplicate" if they share >80% of their word tokens.
+        def _similarity(a: str, b: str) -> float:
+            sa = set(a.lower().split())
+            sb = set(b.lower().split())
+            if not sa and not sb:
+                return 1.0
+            if not sa or not sb:
+                return 0.0
+            return len(sa & sb) / max(len(sa), len(sb))
+        for i in range(len(last) - 1):
+            if _similarity(last[i], last[i + 1]) < 0.80:
+                return False
+        return True
 
     def record_observation(self, tool_name: str, args: dict, output: Optional[str],
                            error: Optional[str], attempt: int = 1, duration_ms: int = 0) -> None:

@@ -54,6 +54,8 @@ _ASK_TOOLS = {
     "python_execute",
     "str_replace_editor",   # write/edit/create
     "browser_use",          # could submit forms, login, etc.
+    "platform_control",     # FIX: controls external platforms — must require ASK
+    "delegate",             # FIX: spawns subagent — require explicit approval
 }
 
 # Tools that are always DENY — never run

@@ -286,7 +286,7 @@ class SessionDB:
                             "type": "message",
                             "id": row[0],
                             "session_id": row[1],
-                            "role": row[2],
+                            "tool_name": row[2],   # FIX: was "role" — tool_calls has tool_name
                             "content": (row[3] or "")[:300],
                             "ts": row[4],
                             "snippet": row[5] or "",
@@ -302,7 +302,7 @@ class SessionDB:
                         rows.append({
                             "type": "message",
                             "id": row[0], "session_id": row[1],
-                            "role": row[2], "content": (row[3] or "")[:300],
+                            "tool_name": row[2], "content": (row[3]  # FIX: tool_name not role or "")[:300],
                             "ts": row[4], "snippet": "",
                         })
 
