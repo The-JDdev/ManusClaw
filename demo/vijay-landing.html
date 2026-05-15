@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Thalapathy Vijay - The Legend</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0a0a0a; color: #e0e0e0; overflow-x: hidden; }
+/* Hero Section */
+#hero { position: relative; height: 100vh; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+#hero canvas { position: absolute; top: 0; left: 0; z-index: 0; }
+.hero-content { position: relative; z-index: 1; text-align: center; }
+.hero-content h1 { font-size: 4.5rem; color: #FFD700; text-shadow: 0 0 40px rgba(255,215,0,0.5); letter-spacing: 4px; animation: fadeInUp 1.5s ease; }
+.hero-content p { font-size: 1.5rem; color: #ccc; margin-top: 10px; animation: fadeInUp 2s ease; }
+@keyframes fadeInUp { from { opacity:0; transform:translateY(30px); } to { opacity:1; transform:translateY(0); } }
+/* Navigation */
+nav { position: fixed; top:0; width:100%; background:rgba(10,10,10,0.9); padding:15px 0; z-index:100; backdrop-filter:blur(10px); }
+nav ul { display:flex; justify-content:center; list-style:none; gap:30px; }
+nav a { color:#FFD700; text-decoration:none; font-weight:600; font-size:1rem; transition:color 0.3s; }
+nav a:hover { color:#fff; }
+/* Sections */
+section { padding: 80px 20px; max-width: 1200px; margin: 0 auto; }
+h2 { font-size: 2.5rem; color: #FFD700; margin-bottom: 40px; text-align: center; position: relative; }
+h2::after { content:''; display:block; width:80px; height:3px; background:#FFD700; margin:15px auto 0; }
+/* About */
+#about .about-grid { display:grid; grid-template-columns:1fr 2fr; gap:40px; align-items:center; }
+.about-info { line-height:1.8; font-size:1.1rem; }
+.about-info strong { color:#FFD700; }
+/* Filmography */
+.film-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:25px; }
+.film-card { background:linear-gradient(135deg,#1a1a2e,#16213e); border-radius:12px; padding:25px; border:1px solid #FFD700; transition:transform 0.3s,box-shadow 0.3s; }
+.film-card:hover { transform:translateY(-5px); box-shadow:0 10px 30px rgba(255,215,0,0.2); }
+.film-card h3 { color:#FFD700; margin-bottom:8px; }
+.film-card .year { color:#888; font-size:0.9rem; }
+.film-card p { margin-top:10px; line-height:1.6; }
+/* Awards */
+.awards-list { display:grid; grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); gap:20px; }
+.award-item { background:linear-gradient(135deg,#1a1a2e,#0f3460); padding:25px; border-radius:10px; border-left:4px solid #FFD700; }
+.award-item h3 { color:#FFD700; margin-bottom:8px; }
+.award-item p { line-height:1.6; }
+/* Timeline */
+.timeline { position:relative; padding:20px 0; }
+.timeline::before { content:''; position:absolute; left:50%; top:0; bottom:0; width:2px; background:#FFD700; transform:translateX(-50%); }
+.timeline-item { display:flex; justify-content:flex-end; padding:0 30px 40px 30px; width:50%; position:relative; }
+.timeline-item:nth-child(odd) { align-self:flex-end; justify-content:flex-start; margin-left:50%; }
+.timeline-item::before { content:''; position:absolute; right:-8px; top:20px; width:16px; height:16px; background:#FFD700; border-radius:50%; border:3px solid #0a0a0a; }
+.timeline-item:nth-child(odd)::before { left:-8px; right:auto; }
+.timeline-content { background:linear-gradient(135deg,#1a1a2e,#16213e); padding:20px; border-radius:10px; max-width:400px; }
+.timeline-content h3 { color:#FFD700; margin-bottom:5px; }
+.timeline-content .year { color:#FFD700; font-weight:bold; font-size:1.1rem; }
+.timeline-content p { margin-top:8px; line-height:1.6; }
+/* Footer */
+footer { text-align:center; padding:40px 20px; border-top:1px solid #222; color:#666; }
+footer span { color:#FFD700; }
+/* Scroll */
+html { scroll-behavior:smooth; }
+/* Responsive */
+@media(max-width:768px) {
+  .hero-content h1 { font-size:2.5rem; }
+  #about .about-grid { grid-template-columns:1fr; }
+  .timeline::before { left:20px; }
+  .timeline-item { width:100%; padding-left:50px; padding-right:20px; }
+  .timeline-item:nth-child(odd) { margin-left:0; }
+  .timeline-item::before { left:12px; right:auto; }
+  .timeline-item:nth-child(odd)::before { left:12px; }
+}
+</style>
+</head>
+<body>
+<nav>
+  <ul>
+    <li><a href="#hero">Home</a></li>
+    <li><a href="#about">About</a></li>
+    <li><a href="#filmography">Filmography</a></li>
+    <li><a href="#awards">Awards</a></li>
+    <li><a href="#timeline">Timeline</a></li>
+  </ul>
+</nav>
+
+<section id="hero">
+  <canvas id="particleCanvas"></canvas>
+  <div class="hero-content">
+    <h1>THALAPATHY VIJAY</h1>
+    <p>The Icon of Tamil Cinema</p>
+  </div>
+</section>
+
+<section id="about">
+  <h2>About the Legend</h2>
+  <div class="about-grid">
+    <div class="about-info">
+      <p><strong>Real Name:</strong> Joseph Vijay Chandrasekhar</p>
+      <p><strong>Born:</strong> June 22, 1974</p>
+      <p><strong>Birthplace:</strong> Chennai, Tamil Nadu, India</p>
+      <p><strong>Occupation:</strong> Actor, Dancer, Playback Singer, Politician</p>
+      <p><strong>Years Active:</strong> 1984 - Present</p>
+      <p><strong>Nickname:</strong> Thalapathy (Commander)</p>
+    </div>
+    <div class="about-info">
+      <p>Vijay, fondly known as <strong>Thalapathy</strong> (Commander) by his millions of fans, is one of the most celebrated actors in Indian cinema. Starting his career as a child artist in 1984, he has starred in over 65 films and has established himself as a box office powerhouse. His ability to blend mass entertainment with social messages has made him a beloved figure across generations. Beyond cinema, Vijay founded the political party Tamizhaga Vettri Kazhagam in 2024, marking a new chapter in his journey as a leader of the people.</p>
+    </div>
+  </div>
+</section>
+
+<section id="filmography">
+  <h2>Filmography</h2>
+  <div class="film-grid">
+    <div class="film-card">
+      <h3>Poove Unakkaga</h3>
+      <span class="year">1996</span>
+      <p>Breakthrough romantic drama that launched Vijay as a leading man in Tamil cinema.</p>
+    </div>
+    <div class="film-card">
+      <h3>Thuppakki</h3>
+      <span class="year">2012</span>
+      <p>Action thriller where Vijay plays an army officer thwarting a terrorist plot. Massive blockbuster hit.</p>
+    </div>
+    <div class="film-card">
+      <h3>Mersal</h3>
+      <span class="year">2017</span>
+      <p>Triple role as a father and two sons - a doctor, magician, and vet. One of the highest-grossing Tamil films.</p>
+    </div>
+    <div class="film-card">
+      <h3>Sarkar</h3>
+      <span class="year">2018</span>
+      <p>Political action drama about an NRI who takes on corrupt politicians. Controversial and impactful.</p>
+    </div>
+    <div class="film-card">
+      <h3>Master</h3>
+      <span class="year">2021</span>
+      <p>College-set action drama co-starring Vijay Sethupathi. A pandemic-era blockbuster that revived theaters.</p>
+    </div>
+    <div class="film-card">
+      <h3>Leo</h3>
+      <span class="year">2023</span>
+      <p>Loose adaptation of History of Violence. Vijay as a cafe owner with a dark past. Directed by Lokesh Kanagaraj.</p>
+    </div>
+    <div class="film-card">
+      <h3>The Greatest Of All Time</h3>
+      <span class="year">2024</span>
+      <p>Venkat Prabhu-directed sci-fi action film where Vijay plays a dual role across timelines.</p>
+    </div>
+  </div>
+</section>
+
+<section id="awards">
+  <h2>Awards & Recognition</h2>
+  <div class="awards-list">
+    <div class="award-item">
+      <h3>Kalaimamani Award</h3>
+      <p>Prestigious recognition from the Government of Tamil Nadu for excellence in the field of art.</p>
+    </div>
+    <div class="award-item">
+      <h3>Vijay Awards</h3>
+      <p>Multiple wins including Favorite Hero, Entertainer of the Year, and Best Actor categories.</p>
+    </div>
+    <div class="award-item">
+      <h3>SIIMA Awards</h3>
+      <p>South Indian International Movie Awards recognizing his contribution to Tamil cinema across years.</p>
+    </div>
+    <div class="award-item">
+      <h3>Filmfare Nominations</h3>
+      <p>Multiple Best Actor nominations at Filmfare Awards South for his powerful performances.</p>
+    </div>
+    <div class="award-item">
+      <h3>Ananda Vikatan Cinema Awards</h3>
+      <p>Recognized for outstanding performances and box office dominance in Tamil cinema.</p>
+    </div>
+    <div class="award-item">
+      <h3>Box Office King</h3>
+      <p>Consistently among the top-grossing Indian actors with multiple 200+ crore films.</p>
+    </div>
+  </div>
+</section>
+
+<section id="timeline">
+  <h2>Life Timeline</h2>
+  <div class="timeline">
+    <div class="timeline-item">
+      <div class="timeline-content">
+        <span class="year">1984</span>
+        <h3>Child Artist Debut</h3>
+        <p>Appeared in the film Vetri as a child artist, directed by his father S.A. Chandrasekhar.</p>
+      </div>
+    </div>
+    <div class="timeline-item">
+      <div class="timeline-content">
+        <span class="year">1992</span>
+        <h3>Lead Debut - Naalaiya Theerpu</h3>
+        <p>Made his debut as a lead actor at the age of 18, beginning his journey as a hero.</p>
+      </div>
+    </div>
+    <div class="timeline-item">
+      <div class="timeline-content">
+        <span class="year">1996</span>
+        <h3>Breakthrough - Poove Unakkaga</h3>
+        <p>The romantic drama that established Vijay as a bankable leading man in Tamil cinema.</p>
+      </div>
+    </div>
+    <div class="timeline-item">
+      <div class="timeline-content">
+        <span class="year">2004</span>
+        <h3>Mass Icon - Ghilli</h3>
+        <p>Ghilli became one of the biggest blockbusters, cementing Vijay as a mass hero.</p>
+      </div>
+    </div>
+    <div class="timeline-item">
+      <div class="timeline-content">
+        <span class="year">2012</span>
+        <h3>Pan-India Reach - Thuppakki</h3>
+        <p>AR Murugadoss directorial that expanded Vijay's reach beyond Tamil audiences.</p>
+      </div>
+    </div>
+    <div class="timeline-item">
+      <div class="timeline-content">
+        <span class="year">2017</span>
+        <h3>Triple Role - Mersal</h3>
+        <p>Played three roles in one film. Became one of the highest-grossing Tamil films ever.</p>
+      </div>
+    </div>
+    <div class="timeline-item">
+      <div class="timeline-content">
+        <span class="year">2021</span>
+        <h3>Pandemic Savior - Master</h3>
+        <p>Revived the theater industry post-COVID with a massive worldwide release.</p>
+      </div>
+    </div>
+    <div class="timeline-item">
+      <div class="timeline-content">
+        <span class="year">2023</span>
+        <h3>Lokesh Universe - Leo</h3>
+        <p>Part of the Lokesh Cinematic Universe. Grossed over 600 crores worldwide.</p>
+      </div>
+    </div>
+    <div class="timeline-item">
+      <div class="timeline-content">
+        <span class="year">2024</span>
+        <h3>Political Entry - TVK</h3>
+        <p>Founded Tamizhaga Vettri Kazhagam, entering politics to serve the people of Tamil Nadu.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <p>A tribute to <span>Thalapathy Vijay</span> - The Commander of Hearts</p>
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function() {
+  const canvas = document.getElementById('particleCanvas');
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+  const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(window.devicePixelRatio);
+
+  const particleCount = 3000;
+  const geometry = new THREE.BufferGeometry();
+  const positions = new Float32Array(particleCount * 3);
+  const velocities = [];
+
+  for (let i = 0; i < particleCount; i++) {
+    positions[i * 3] = (Math.random() - 0.5) * 20;
+    positions[i * 3 + 1] = (Math.random() - 0.5) * 20;
+    positions[i * 3 + 2] = (Math.random() - 0.5) * 20;
+    velocities.push({
+      x: (Math.random() - 0.5) * 0.01,
+      y: (Math.random() - 0.5) * 0.01,
+      z: (Math.random() - 0.5) * 0.01
+    });
+  }
+
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+  const material = new THREE.PointsMaterial({
+    color: 0xFFD700,
+    size: 0.05,
+    transparent: true,
+    opacity: 0.8,
+    blending: THREE.AdditiveBlending
+  });
+
+  const particles = new THREE.Points(geometry, material);
+  scene.add(particles);
+  camera.position.z = 5;
+
+  let mouseX = 0, mouseY = 0;
+  document.addEventListener('mousemove', function(e) {
+    mouseX = (e.clientX / window.innerWidth - 0.5) * 2;
+    mouseY = (e.clientY / window.innerHeight - 0.5) * 2;
+  });
+
+  function animate() {
+    requestAnimationFrame(animate);
+    const pos = geometry.attributes.position.array;
+    for (let i = 0; i < particleCount; i++) {
+      pos[i * 3] += velocities[i].x;
+      pos[i * 3 + 1] += velocities[i].y;
+      pos[i * 3 + 2] += velocities[i].z;
+      if (Math.abs(pos[i * 3]) > 10) velocities[i].x *= -1;
+      if (Math.abs(pos[i * 3 + 1]) > 10) velocities[i].y *= -1;
+      if (Math.abs(pos[i * 3 + 2]) > 10) velocities[i].z *= -1;
+    }
+    geometry.attributes.position.needsUpdate = true;
+    particles.rotation.x += 0.0005;
+    particles.rotation.y += 0.001;
+    camera.position.x += (mouseX * 0.5 - camera.position.x) * 0.05;
+    camera.position.y += (-mouseY * 0.5 - camera.position.y) * 0.05;
+    camera.lookAt(scene.position);
+    renderer.render(scene, camera);
+  }
+  animate();
+
+  window.addEventListener('resize', function() {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+})();
+</script>
+</body>
+</html>

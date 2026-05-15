@@ -129,6 +129,7 @@ class UniversalClient:
         self.max_tokens = kwargs.get("max_tokens", 8192)
         self.temperature = kwargs.get("temperature", 0.0)
         self._extra_headers: dict[str, str] = kwargs.get("extra_headers", {})
+        self._timeout_seconds = kwargs.get("timeout", 300)
 
     async def _post(self, payload: dict[str, Any], api_key: Optional[str] = None) -> dict[str, Any]:
         import aiohttp
@@ -139,7 +140,7 @@ class UniversalClient:
             **self._extra_headers,
         }
         url = f"{self.base_url}/chat/completions"
-        timeout = aiohttp.ClientTimeout(total=120)
+        timeout = aiohttp.ClientTimeout(total=self._timeout_seconds)
         async with aiohttp.ClientSession(timeout=timeout) as session:
             async with session.post(url, json=payload, headers=headers) as resp:
                 if resp.status == 429:
@@ -169,7 +170,8 @@ class UniversalClient:
 class OpenAIClient:
     def __init__(self, cfg: Any) -> None:
         from openai import AsyncOpenAI
-        self._c = AsyncOpenAI(api_key=cfg.api_key, base_url=cfg.base_url or None)
+        timeout_val = getattr(cfg, 'timeout', 300) or 300
+        self._c = AsyncOpenAI(api_key=cfg.api_key, base_url=cfg.base_url or None, timeout=timeout_val)
         self.model: str = cfg.model
         self.max_tokens: int = cfg.max_tokens
         self.temperature: float = cfg.temperature
@@ -257,9 +259,7 @@ class AnthropicClient:
                 elif isinstance(nc, list):
                     merged[-1] = {"role": msg["role"], "content": [{"type": "text", "text": str(pc)}, *nc]}
                 else:
-                    prev["content"] = str(pc) + "
-
-" + str(nc)
+                    prev["content"] = str(pc) + "\n" + str(nc)
             else:
                 merged.append({"role": msg["role"], "content": msg["content"]})
         return merged
@@ -487,6 +487,7 @@ class LLM:
                 base_url=cfg.llm.base_url, api_key=cfg.llm.api_key or "none",
                 model=cfg.llm.model, max_tokens=cfg.llm.max_tokens,
                 temperature=cfg.llm.temperature, extra_headers=cfg.llm.extra_headers or {},
+                timeout=cfg.llm.timeout,
             )
         if provider == "openai":
             return OpenAIClient(cfg.llm)
@@ -505,6 +506,7 @@ class LLM:
                 base_url=cfg.llm.base_url, api_key=cfg.llm.api_key or "none",
                 model=cfg.llm.model, max_tokens=cfg.llm.max_tokens,
                 temperature=cfg.llm.temperature,
+                timeout=cfg.llm.timeout,
             )
         logger.warning(f"No valid LLM config (provider={provider!r}). Using MockLLM.")
         return MockLLM()
