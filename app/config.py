@@ -61,7 +61,7 @@ class LLMConfig(BaseModel):
 
     @model_validator(mode="after")
     def _coerce_provider(self) -> "LLMConfig":
-        safe = {"mock", "ollama", "lmstudio", "openai-compat", "universal", ""}
+        safe = {"mock", "ollama", "lmstudio", "openai-compat", "universal", "gguf", "huggingface", "hf", ""}
         if self.provider not in safe and not self.api_key and not self.base_url:
             self.provider = "mock"
         return self
@@ -218,7 +218,7 @@ class Config:
             cfg.runflow.timeout = 60
 
         # Final fallback
-        safe_providers = {"mock", "ollama", "lmstudio", "universal", "openai-compat", ""}
+        safe_providers = {"mock", "ollama", "lmstudio", "universal", "openai-compat", "gguf", "huggingface", "hf", ""}
         if cfg.llm.provider not in safe_providers and not cfg.llm.api_key and not cfg.llm.base_url:
             import warnings
             warnings.warn(

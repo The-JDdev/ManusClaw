@@ -36,15 +36,47 @@ class GGUFRouter:
                  n_gpu_layers: int = 0):
         self.llm = _load_gguf(model_path, n_ctx, n_gpu_layers)
 
+    def _parse_tool_calls_from_text(self, text: str) -> list:
+        """Extract tool calls from text when native tool calling fails."""
+        import re
+        tool_calls = []
+        # Pattern: {"name": "tool_name", "arguments": {...}}
+        pattern = r'\{"name":\s*"(\w+)",\s*"arguments":\s*(\{[^}]*\})\}'
+        for match in re.finditer(pattern, text):
+            name = match.group(1)
+            try:
+                args = json.loads(match.group(2))
+            except json.JSONDecodeError:
+                args = {}
+            tool_calls.append({
+                "id": f"gguf-{name}-{int(asyncio.get_event_loop().time())}",
+                "type": "function",
+                "function": {"name": name, "arguments": json.dumps(args)},
+            })
+        return tool_calls
+
     async def chat(self, messages: List[dict], max_tokens: int = 2048,
-                    temperature: float = 0.7, **_) -> dict:
+                    temperature: float = 0.7, tools=None, **_) -> dict:
         """Async wrapper that returns OpenAI-format dict."""
-        resp = await asyncio.to_thread(
-            self.llm.create_chat_completion,
+        kwargs = dict(
             messages=messages,
             max_tokens=max_tokens,
             temperature=temperature,
         )
+        if tools:
+            kwargs["tools"] = tools
+        resp = await asyncio.to_thread(
+            self.llm.create_chat_completion,
+            **kwargs,
+        )
+        # If the model returned content instead of tool_calls, try to parse tool calls from text
+        msg = resp.get("choices", [{}])[0].get("message", {})
+        content = msg.get("content") or ""
+        if tools and not msg.get("tool_calls") and content:
+            parsed = self._parse_tool_calls_from_text(content)
+            if parsed:
+                resp["choices"][0]["message"]["tool_calls"] = parsed
+                resp["choices"][0]["message"]["content"] = None
         return resp  # already OpenAI-format dict
 
     def stream(self, messages: List[dict], max_tokens: int = 2048,

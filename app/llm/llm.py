@@ -465,7 +465,7 @@ class LLM:
             if not model_path:
                 raise ValueError("GGUF provider requires llm.model = '/path/to/model.gguf'")
             logger.info(f"Using GGUF offline router: {model_path}")
-            return GGUFRouter(model_path=model_path, n_ctx=4096)
+            return GGUFRouter(model_path=model_path, n_ctx=8192)
         if provider == "ollama":
             from app.llm.offline_router import OllamaRouter
             base_url = cfg.llm.base_url or "http://localhost:11434"

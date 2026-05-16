@@ -2,7 +2,7 @@
 # Copy and customize this file. Secrets should use environment variables.
 
 [llm]
-# provider options: "mock" (no API key needed), "openai", "azure", "anthropic", "ollama", "openrouter"
+# provider options: "mock" (no API key needed), "openai", "azure", "anthropic", "ollama", "openrouter", "gguf", "huggingface"
 provider = "mock"
 model    = "gpt-4o"
 # base_url = "https://api.openai.com/v1"  # or Azure endpoint, OpenRouter, etc.
