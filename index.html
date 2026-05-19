@@ -1,574 +1,419 @@
 <!DOCTYPE html>
-<html lang="en" class="scroll-smooth">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ManusClaw | The Ultimate Autonomous AI Beast</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800;900&family=Plus+Jakarta+Sans:wght@300;400;600;700&family=Fira+Code:wght@400;600&display=swap" rel="stylesheet">
-    
-    <style>
-        /* Ultra-Cinematic Variables */
-        :root {
-            --bg-deep: #030305;
-            --primary-glow: rgba(56, 189, 248, 0.2);
-            --secondary-glow: rgba(139, 92, 246, 0.2);
-            --danger-glow: rgba(239, 68, 68, 0.15);
-            --accent: #38bdf8;
-        }
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>ManusClaw v4.0 · Autonomous AI Ecosystem</title>
 
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Barlow:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        heading: ["'Instrument Serif'", 'serif'],
+                        body: ["'Barlow'", 'sans-serif'],
+                        mono: ["'JetBrains Mono'", 'monospace'],
+                    },
+                    borderRadius: { DEFAULT: '9999px' },
+                },
+            },
+        }
+    </script>
+
+    <style>
+        *,
+        *::before,
+        *::after { box-sizing: border-box; margin:0; padding:0; }
         body {
-            font-family: 'Plus Jakarta Sans', sans-serif;
-            background-color: var(--bg-deep);
-            color: #e2e8f0;
+            background: #020205;
+            color: #fff;
+            font-family: 'Barlow', sans-serif;
+            -webkit-font-smoothing: antialiased;
             overflow-x: hidden;
         }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
 
-        h1, h2, h3, .cinematic-title {
-            font-family: 'Outfit', sans-serif;
+        /* Glass design system */
+        .glass {
+            background: rgba(255,255,255,0.02);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255,255,255,0.08);
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
         }
-
-        .mono-font {
-            font-family: 'Fira Code', monospace;
+        .glass-strong {
+            background: rgba(0,0,0,0.3);
+            backdrop-filter: blur(40px);
+            -webkit-backdrop-filter: blur(40px);
+            border: 1px solid rgba(255,255,255,0.15);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.7);
         }
-
-        /* Dynamic Moving Background */
-        .bg-animation {
-            position: fixed;
-            top: 0; left: 0; width: 100vw; height: 100vh;
-            z-index: -2;
-            background: 
-                radial-gradient(circle at 15% 50%, var(--primary-glow), transparent 30%),
-                radial-gradient(circle at 85% 30%, var(--secondary-glow), transparent 30%),
-                radial-gradient(circle at 50% 80%, var(--danger-glow), transparent 40%);
-            animation: pulseBg 15s ease-in-out infinite alternate;
+        .card-hover {
+            transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
         }
-
-        @keyframes pulseBg {
-            0% { transform: scale(1); opacity: 0.8; }
-            50% { transform: scale(1.1); opacity: 1; }
-            100% { transform: scale(0.95); opacity: 0.7; }
-        }
-
-        /* Real 3D Glassmorphism Panel with Deep Blur */
-        .glass-panel {
-            background: rgba(15, 23, 42, 0.4);
-            backdrop-filter: blur(30px);
-            -webkit-backdrop-filter: blur(30px);
-            border: 1px solid rgba(255, 255, 255, 0.05);
-            box-shadow: 0 30px 60px -15px rgba(0, 0, 0, 0.7), inset 0 1px 1px rgba(255, 255, 255, 0.1);
-            transform-style: preserve-3d;
-            transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        .card-hover:hover {
+            transform: translateY(-6px);
+            border-color: rgba(255,160,40,0.4);
+            box-shadow: 0 30px 60px rgba(255,100,20,0.25);
         }
 
-        /* The Premium Donation Vault Cards */
-        .donation-vault {
-            position: relative;
-            background: linear-gradient(145deg, rgba(30, 41, 59, 0.7), rgba(15, 23, 42, 0.9));
-            border-radius: 24px;
-            padding: 2px;
-            overflow: hidden;
-            z-index: 1;
-            transition: transform 0.4s ease, box-shadow 0.4s ease;
+        /* Highlight text */
+        .hl {
+            background: linear-gradient(135deg, #ff7b1a, #e04000);
+            color: #fff;
+            padding: 0.08em 0.35em;
+            border-radius: 0.35em;
+            font-weight: 600;
+            display: inline-block;
+        }
+        .hl-cyan {
+            background: linear-gradient(135deg, #0098c7, #005f8a);
         }
 
-        .donation-vault::before {
-            content: '';
-            position: absolute;
-            top: -50%; left: -50%; width: 200%; height: 200%;
-            background: conic-gradient(transparent, var(--border-color), transparent 30%);
-            animation: rotateBorder 4s linear infinite;
-            z-index: -1;
-            opacity: 0;
-            transition: opacity 0.4s ease;
+        /* Terminal */
+        .terminal-box {
+            background: rgba(6,6,14,0.94);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 1.25rem;
+            padding: 1.4rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            color: #c0d8ff;
+            box-shadow: 0 30px 60px rgba(0,0,0,0.8);
+            max-height: 380px;
+            overflow-y: auto;
         }
+        .terminal-line {
+            animation: fadeLine 0.08s forwards;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        @keyframes fadeLine { from{opacity:0;} to{opacity:1;} }
+        .cursor-blk {
+            display:inline-block; width:0.5em; height:1.1em; background:#ffb020;
+            vertical-align:middle; animation:blink 0.9s infinite;
+        }
+        @keyframes blink { 0%,50%{opacity:1;} 51%,100%{opacity:0;} }
 
-        .donation-vault:hover::before { opacity: 1; }
-        
-        .donation-vault-inner {
-            background: #0b1120;
-            border-radius: 22px;
-            height: 100%;
-            padding: 24px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            text-align: center;
-            position: relative;
-            z-index: 2;
+        /* Chat bubbles */
+        .chat-bubble {
+            max-width:82%; padding:0.7rem 1.1rem; border-radius:1.6rem;
+            margin-bottom:0.7rem; font-size:0.88rem; line-height:1.4;
+            word-break:break-word; animation:popIn 0.35s ease-out;
         }
+        .chat-user {
+            background:rgba(255,255,255,0.07); align-self:flex-end;
+            border-bottom-right-radius:0.3rem; margin-left:auto;
+        }
+        .chat-agent {
+            background:rgba(255,140,20,0.18); border-bottom-left-radius:0.3rem;
+            margin-right:auto;
+        }
+        @keyframes popIn { from{opacity:0;transform:translateY(10px);} to{opacity:1;transform:translateY(0);} }
 
-        @keyframes rotateBorder {
-            100% { transform: rotate(360deg); }
+        /* Mind map */
+        .mind-node {
+            position:absolute; width:56px; height:56px; border-radius:50%;
+            display:flex; align-items:center; justify-content:center;
+            font-weight:700; font-size:0.65rem; text-align:center; line-height:1.2;
+            border:2px solid; background:rgba(0,0,0,0.6); backdrop-filter:blur(8px);
+            animation:nodePop 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+            opacity:0; transform:scale(0);
         }
+        @keyframes nodePop { to{opacity:1;transform:scale(1);} }
+        .mind-line {
+            stroke-dasharray:300; stroke-dashoffset:300;
+            animation:draw 1.2s ease-in-out forwards;
+        }
+        @keyframes draw { to{stroke-dashoffset:0;} }
 
-        /* Text Gradients */
-        .text-gradient {
-            background: linear-gradient(to right, #ffffff, #94a3b8);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+        /* Reveal on scroll */
+        .reveal-el {
+            opacity:0; transform:translateY(35px); filter:blur(6px);
+            transition: opacity 0.7s ease, transform 0.7s ease, filter 0.7s ease;
         }
-        
-        .text-gradient-accent {
-            background: linear-gradient(135deg, #38bdf8, #8b5cf6, #ec4899);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-size: 200% 200%;
-            animation: gradientMove 5s ease infinite;
-        }
+        .reveal-el.visible { opacity:1; transform:translateY(0); filter:blur(0); }
 
-        /* Floating Animation */
-        .floating { animation: floating 6s ease-in-out infinite; }
-        @keyframes floating {
-            0% { transform: translateY(0px); }
-            50% { transform: translateY(-20px); }
-            100% { transform: translateY(0px); }
+        /* 3D agent wrapper */
+        .agent-3d-wrap {
+            border-radius:2.5rem; overflow:hidden;
+            background:radial-gradient(circle at center, rgba(255,100,30,0.15) 0%, transparent 65%);
+            box-shadow:0 0 80px rgba(255,80,20,0.25), 0 0 160px rgba(0,180,255,0.12);
+            position:relative;
         }
+        .agent-glow {
+            position:absolute; inset:-20px; border-radius:inherit;
+            background:conic-gradient(from 0deg, #ff6a00, #00a6ff, #ff6a00, #00a6ff, #ff6a00);
+            filter:blur(60px); opacity:0.35; animation:spinGlow 8s linear infinite;
+            pointer-events:none; z-index:-1;
+        }
+        @keyframes spinGlow { to{transform:rotate(360deg);} }
 
-        /* Custom Scrollbar */
-        ::-webkit-scrollbar { width: 10px; }
-        ::-webkit-scrollbar-track { background: #030305; }
-        ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 10px; border: 2px solid #030305; }
-        ::-webkit-scrollbar-thumb:hover { background: #38bdf8; }
-
-        /* Cinematic Toast */
-        #toast-container {
-            position: fixed; bottom: 40px; right: 40px; z-index: 9999;
-            display: flex; flex-direction: column; gap: 15px; pointer-events: none;
-        }
-        .toast {
-            background: rgba(5, 5, 5, 0.95);
-            backdrop-filter: blur(20px);
-            border: 1px solid;
-            color: white; padding: 20px 30px; border-radius: 16px;
-            box-shadow: 0 25px 50px -10px rgba(0,0,0,0.8);
-            display: flex; align-items: center; gap: 16px;
-            transform: translateX(150%) scale(0.9);
-            transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            opacity: 0; pointer-events: auto;
-        }
-        .toast.show { transform: translateX(0) scale(1); opacity: 1; }
-
-        /* 3D Tilt Integration */
-        .tilt-element { transform-style: preserve-3d; transform: perspective(1000px); }
-        .tilt-inner { transform: translateZ(50px); }
-        
-        /* Grid overlay for tech vibe */
-        .grid-overlay {
-            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-            background-image: linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
-            background-size: 50px 50px; z-index: -1; pointer-events: none;
-        }
+        /* Smooth anchor */
+        html { scroll-behavior: smooth; }
     </style>
 </head>
-<body class="antialiased selection:bg-sky-500 selection:text-white">
+<body>
+    <div id="root"></div>
 
-    <div class="bg-animation"></div>
-    <div class="grid-overlay"></div>
-
-    <!-- Navigation -->
-    <nav class="fixed w-full z-50 glass-panel border-b-0 border-white/5 rounded-b-3xl">
-        <div class="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
-            <div class="text-3xl font-black tracking-tighter flex items-center gap-3 tilt-element" data-tilt>
-                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-sky-400 via-purple-500 to-pink-500 shadow-[0_0_30px_rgba(139,92,246,0.5)] flex items-center justify-center text-white tilt-inner">
-                    <i class="fas fa-paw"></i>
-                </div>
-                ManusClaw
-            </div>
-            <div class="hidden md:flex gap-10 text-sm font-bold text-gray-400">
-                <a href="#what" class="hover:text-white hover:drop-shadow-[0_0_10px_rgba(255,255,255,0.8)] transition-all">The Beast</a>
-                <a href="#architecture" class="hover:text-white hover:drop-shadow-[0_0_10px_rgba(255,255,255,0.8)] transition-all">Intelligence Layer</a>
-                <a href="#setup" class="hover:text-white hover:drop-shadow-[0_0_10px_rgba(255,255,255,0.8)] transition-all">Deployment</a>
-            </div>
-            <a href="#support" class="bg-white/10 hover:bg-white/20 px-6 py-2.5 rounded-full font-bold transition transform hover:scale-105 active:scale-95 border border-white/10 shadow-lg">
-                Fuel The Claw <i class="fas fa-bolt ml-2 text-yellow-400"></i>
-            </a>
-        </div>
-    </nav>
-
-    <!-- Hero Section -->
-    <section class="relative min-h-screen flex items-center justify-center pt-24 overflow-hidden">
-        <div class="max-w-7xl mx-auto px-6 flex flex-col items-center text-center z-10 w-full">
-            
-            <div class="glass-panel px-6 py-2 rounded-full text-sm font-bold text-sky-400 mb-8 border-sky-400/30 shadow-[0_0_40px_rgba(56,189,248,0.2)] tilt-element floating" data-tilt>
-                <span class="tilt-inner inline-block"><i class="fas fa-microchip mr-2"></i> v3.2 Intelligence Layer Active</span>
-            </div>
-            
-            <h1 class="text-6xl md:text-8xl lg:text-9xl font-black tracking-tighter leading-[1.1] mb-6 tilt-element" data-tilt data-tilt-max="4">
-                <span class="text-transparent bg-clip-text bg-gradient-to-r from-sky-400 to-blue-600 tracking-tight cinematic-title block mb-4 text-5xl">ManusClaw Control Panel</span>
-                <span class="tilt-inner inline-block drop-shadow-2xl">Execute. <br>Automate.<br></span>
-                <span class="text-gradient-accent tilt-inner inline-block drop-shadow-[0_0_40px_rgba(139,92,246,0.4)]">Dominate.</span>
-            </h1>
-            
-            <p class="text-lg md:text-2xl text-gray-400 max-w-4xl mb-12 font-light leading-relaxed">
-                <strong class="text-white">ManusClaw</strong> is an elite, open-source AI agent orchestration beast. Armed with a self-healing <code class="bg-white/10 px-2 py-1 rounded text-sky-300">Plan -> Act -> Reflect</code> loop, it tears through web automation, Python execution, and terminal commands autonomously. No GUI. Pure programmatic lethality.
-            </p>
-            
-            <div class="flex flex-col sm:flex-row gap-6 w-full justify-center tilt-element" data-tilt>
-                <a href="#setup" class="bg-gradient-to-r from-sky-500 to-purple-600 hover:from-sky-400 hover:to-purple-500 text-white px-12 py-5 rounded-2xl font-black text-xl shadow-[0_0_40px_rgba(139,92,246,0.4)] transform transition hover:-translate-y-2 flex items-center justify-center gap-3 tilt-inner">
-                    <i class="fas fa-terminal"></i> Initialize Framework
-                </a>
-                <a href="https://github.com/The-JDdev/ManusClaw" target="_blank" class="glass-panel hover:bg-white/10 text-white px-12 py-5 rounded-2xl font-bold text-xl border-white/20 transform transition hover:-translate-y-2 flex items-center justify-center gap-3 tilt-inner">
-                    <i class="fa-brands fa-github text-2xl"></i> View Repository
-                </a>
-            </div>
-
-            <!-- Cinematic Live Terminal Simulation -->
-            <div class="w-full max-w-3xl mt-20 glass-panel rounded-2xl overflow-hidden border border-white/10 shadow-[0_20px_70px_rgba(0,0,0,0.8)] tilt-element text-left" data-tilt data-tilt-max="2">
-                <div class="bg-black/60 px-4 py-3 flex items-center gap-2 border-b border-white/10">
-                    <div class="w-3.5 h-3.5 rounded-full bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.6)]"></div>
-                    <div class="w-3.5 h-3.5 rounded-full bg-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.6)]"></div>
-                    <div class="w-3.5 h-3.5 rounded-full bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.6)]"></div>
-                    <span class="ml-4 text-xs mono-font text-gray-500">manus_claw_core_execution.sh</span>
-                </div>
-                <div class="p-6 bg-[#030305]/90 mono-font text-sm leading-relaxed h-48 overflow-hidden relative">
-                    <div id="typewriter" class="text-green-400"></div>
-                    <div class="absolute bottom-0 left-0 w-full h-12 bg-gradient-to-t from-[#030305]/90 to-transparent"></div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- Deep Dive: The Genesis -->
-    <section id="what" class="py-32 relative z-10">
-        <div class="max-w-7xl mx-auto px-6">
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
-                
-                <div class="tilt-element" data-tilt data-tilt-max="3" data-tilt-glare="true" data-tilt-max-glare="0.2">
-                    <div class="glass-panel p-12 rounded-[2.5rem] h-full border-l-4 border-l-sky-500 relative overflow-hidden">
-                        <div class="absolute -right-20 -top-20 w-64 h-64 bg-sky-500/10 rounded-full blur-[50px]"></div>
-                        <h2 class="text-4xl md:text-5xl font-black mb-8 text-gradient">The Genesis of ManusClaw</h2>
-                        <p class="text-gray-300 text-lg leading-relaxed mb-6">
-                            Standard AI wrappers are built for casual users. <strong class="text-white">ManusClaw</strong> is engineered for architects. It abandons restrictive GUIs, embedding a deeply integrated orchestration layer directly into your terminal. 
-                        </p>
-                        <p class="text-gray-300 text-lg leading-relaxed mb-8">
-                            By utilizing dynamic TOML configurations, it bypasses vendor lock-in, allowing instant routing between OpenAI, DeepSeek, Anthropic, or local Ollama models. It doesn't just "talk"—it spawns isolated Python subprocesses, manipulates deep DOM structures via Playwright, and modifies system files in real-time.
-                        </p>
-                        <div class="space-y-5 text-gray-300 font-bold text-lg">
-                            <div class="flex items-center gap-4 bg-white/5 p-4 rounded-xl"><i class="fas fa-check-circle text-sky-400 text-2xl"></i> True CLI & Programmatic Integration</div>
-                            <div class="flex items-center gap-4 bg-white/5 p-4 rounded-xl"><i class="fas fa-check-circle text-sky-400 text-2xl"></i> Agnostic Multi-LLM Routing</div>
-                            <div class="flex items-center gap-4 bg-white/5 p-4 rounded-xl"><i class="fas fa-check-circle text-sky-400 text-2xl"></i> Persistent Short/Long-Term Memory</div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="space-y-8">
-                    <div class="glass-panel p-8 rounded-3xl tilt-element border border-white/5 hover:border-purple-500/30 transition-all" data-tilt>
-                        <div class="w-16 h-16 rounded-2xl bg-purple-500/20 flex items-center justify-center text-purple-400 text-3xl mb-6 shadow-[0_0_30px_rgba(139,92,246,0.3)]"><i class="fas fa-brain"></i></div>
-                        <h3 class="text-2xl font-bold mb-3 text-white">Self-Healing Logic</h3>
-                        <p class="text-gray-400 leading-relaxed">Unlike basic scripts that crash on error, ManusClaw analyzes stack traces, restructures its plan, and aggressively retries using alternate tools until the objective is secured.</p>
-                    </div>
-                    <div class="glass-panel p-8 rounded-3xl tilt-element border border-white/5 hover:border-pink-500/30 transition-all" data-tilt>
-                        <div class="w-16 h-16 rounded-2xl bg-pink-500/20 flex items-center justify-center text-pink-400 text-3xl mb-6 shadow-[0_0_30px_rgba(236,72,153,0.3)]"><i class="fas fa-spider"></i></div>
-                        <h3 class="text-2xl font-bold mb-3 text-white">Model Context Protocol (MCP)</h3>
-                        <p class="text-gray-400 leading-relaxed">Seamless global tool discovery. Connect via stdio or SSE transports. Proxy remote tools instantly or spin up your own FastMCP server to expose local execution globally.</p>
-                    </div>
-                </div>
-
-            </div>
-        </div>
-    </section>
-
-    <!-- The Intelligence Layer (Cinematic Grid) -->
-    <section id="architecture" class="py-32 relative z-10 bg-[#020203]/80 border-y border-white/5">
-        <div class="max-w-7xl mx-auto px-6">
-            <div class="text-center mb-20">
-                <h2 class="text-5xl md:text-6xl font-black mb-6">The <span class="text-gradient-accent">Intelligence</span> Layer</h2>
-                <p class="text-gray-400 max-w-3xl mx-auto text-xl font-light">Anatomy of an autonomous beast. ManusClaw operates on a multi-tiered cognitive architecture designed for raw problem-solving.</p>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-10">
-                <!-- Architecture 1 -->
-                <div class="glass-panel p-10 rounded-[2rem] tilt-element hover-3d group" data-tilt>
-                    <div class="text-sky-400 text-5xl mb-8 group-hover:scale-110 transition duration-500 drop-shadow-[0_0_20px_rgba(56,189,248,0.5)] tilt-inner"><i class="fas fa-sync"></i></div>
-                    <h3 class="text-3xl font-bold mb-5 text-white">The Manus Loop</h3>
-                    <p class="text-gray-400 text-base leading-relaxed">
-                        Hardcoded cognitive cycle: <code class="text-sky-300 bg-sky-500/10 px-2 py-1 rounded">Plan -> Act -> Observe -> Reflect -> Retry</code>. The system executes a tool, reads the output, evaluates success against the goal, and pivots strategy dynamically if blocked.
-                    </p>
-                </div>
-
-                <!-- Architecture 2 -->
-                <div class="glass-panel p-10 rounded-[2rem] tilt-element hover-3d group" data-tilt>
-                    <div class="text-purple-400 text-5xl mb-8 group-hover:scale-110 transition duration-500 drop-shadow-[0_0_20px_rgba(139,92,246,0.5)] tilt-inner"><i class="fas fa-toolbox"></i></div>
-                    <h3 class="text-3xl font-bold mb-5 text-white">Lethal Tool Arsenal</h3>
-                    <p class="text-gray-400 text-base leading-relaxed">
-                        Natively equipped with isolated multiprocessing <code class="text-purple-300">PythonExecute</code>, Playwright-driven persistent <code class="text-purple-300">BrowserUseTool</code>, regex-ready <code class="text-purple-300">StrReplaceEditor</code>, and exponential backoff search engines.
-                    </p>
-                </div>
-
-                <!-- Architecture 3 -->
-                <div class="glass-panel p-10 rounded-[2rem] tilt-element hover-3d group" data-tilt>
-                    <div class="text-pink-400 text-5xl mb-8 group-hover:scale-110 transition duration-500 drop-shadow-[0_0_20px_rgba(236,72,153,0.5)] tilt-inner"><i class="fas fa-shield-virus"></i></div>
-                    <h3 class="text-3xl font-bold mb-5 text-white">Docker Sandboxing</h3>
-                    <p class="text-gray-400 text-base leading-relaxed">
-                        Dangerous executions are contained. Code modifications and bash terminal commands are executed within configurable Docker environments, ensuring host system integrity during deep analysis.
-                    </p>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- Setup Guide (Terminal Style inside Glass) -->
-    <section id="setup" class="py-32 relative z-10">
-        <div class="max-w-5xl mx-auto px-6">
-            <div class="text-center mb-16">
-                <h2 class="text-4xl md:text-5xl font-black mb-4">Framework <span class="text-gradient-accent">Initialization</span></h2>
-            </div>
-
-            <div class="glass-panel p-1 rounded-3xl overflow-hidden shadow-2xl tilt-element" data-tilt data-tilt-max="2">
-                <!-- Mac-style Window Header -->
-                <div class="bg-black/40 px-4 py-3 flex items-center gap-2 border-b border-white/5">
-                    <div class="w-3 h-3 rounded-full bg-red-500"></div>
-                    <div class="w-3 h-3 rounded-full bg-yellow-500"></div>
-                    <div class="w-3 h-3 rounded-full bg-green-500"></div>
-                    <span class="ml-4 text-xs font-mono text-gray-500">setup_manusclaw.sh</span>
-                </div>
-                
-                <div class="p-8 bg-[#0b1120] font-mono text-sm space-y-6">
-                    <div>
-                        <span class="text-gray-500"># 1. Clone the repository</span><br>
-                        <span class="text-sky-400">git</span> clone https://github.com/The-JDdev/ManusClaw.git<br>
-                        <span class="text-sky-400">cd</span> ManusClaw
-                    </div>
-                    
-                    <div>
-                        <span class="text-gray-500"># 2. Install dependencies (Requires Python 3.11/3.12)</span><br>
-                        <span class="text-sky-400">pip</span> install -r requirements.txt
-                    </div>
-
-                    <div>
-                        <span class="text-gray-500"># 3. Configure your API keys in config.toml</span><br>
-                        <span class="text-purple-400">cp</span> config.example.toml config.toml<br>
-                        <span class="text-gray-400"># Edit config.toml to add LLM backend details</span>
-                    </div>
-
-                    <div>
-                        <span class="text-gray-500"># 4. Execute the main agent</span><br>
-                        <span class="text-sky-400">python</span> main.py <span class="text-green-400">"Build a 3D cinematic landing page"</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- Support & Donation (THE CYBERPUNK VAULT) -->
-    <section id="support" class="py-32 relative z-10">
-        <div class="max-w-7xl mx-auto px-6">
-            <div class="text-center mb-20">
-                <div class="inline-flex items-center justify-center w-20 h-20 rounded-full bg-yellow-500/10 text-yellow-500 text-4xl mb-6 shadow-[0_0_50px_rgba(234,179,8,0.2)]">
-                    <i class="fas fa-bolt"></i>
-                </div>
-                <h2 class="text-5xl md:text-6xl font-black mb-6">Fuel The <span class="text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-500">Claw</span></h2>
-                <p class="text-gray-400 max-w-3xl mx-auto text-xl font-light">Open-source development requires raw power. Support the engineering behind ManusClaw. Click any encrypted vault below to copy the exact address.</p>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-8">
-                
-                <!-- USDT TRON VAULT -->
-                <div class="donation-vault tilt-element cursor-pointer group" data-tilt data-tilt-max="5" style="--border-color: #ef4444;" onclick="copyToClipboard('TH75J4zaMPwhyR3QxEFdwTCgU2Pp3yPUEr', 'USDT (TRC20)', '#ef4444')">
-                    <div class="donation-vault-inner group-hover:bg-[#111827] transition-colors">
-                        <div class="absolute inset-0 bg-red-500/5 blur-3xl rounded-full group-hover:bg-red-500/20 transition-all duration-500"></div>
-                        <div class="w-20 h-20 rounded-2xl bg-[#1a0f14] border border-red-500/30 flex items-center justify-center text-red-500 text-4xl mb-6 shadow-[0_0_30px_rgba(239,68,68,0.4)] tilt-inner group-hover:scale-110 transition duration-500">
-                            <i class="fa-brands fa-ethereum"></i>
-                        </div>
-                        <h4 class="text-2xl font-black text-white mb-2 tracking-wide">USDT</h4>
-                        <div class="bg-red-500/10 text-red-400 text-xs font-bold px-3 py-1 rounded-full mb-4 border border-red-500/20">TRC20 Network</div>
-                        <p class="text-sm text-gray-500 mono-font break-all line-clamp-1 w-full bg-black/50 p-3 rounded-lg border border-white/5 group-hover:border-red-500/50 group-hover:text-white transition-all">TH75J4zaMPwhyR3QxEFdwTCgU2Pp3yPUEr</p>
-                        <div class="mt-6 font-bold text-red-500 opacity-0 group-hover:opacity-100 transform translate-y-4 group-hover:translate-y-0 transition-all duration-300"><i class="fas fa-crosshairs"></i> Click to Extract</div>
-                    </div>
-                </div>
-
-                <!-- WebMoney WMT VAULT -->
-                <div class="donation-vault tilt-element cursor-pointer group" data-tilt data-tilt-max="5" style="--border-color: #3b82f6;" onclick="copyToClipboard('T202226490170', 'WebMoney (WMT)', '#3b82f6')">
-                    <div class="donation-vault-inner group-hover:bg-[#111827] transition-colors">
-                        <div class="absolute inset-0 bg-blue-500/5 blur-3xl rounded-full group-hover:bg-blue-500/20 transition-all duration-500"></div>
-                        <div class="w-20 h-20 rounded-2xl bg-[#0f1624] border border-blue-500/30 flex items-center justify-center text-blue-500 text-4xl mb-6 shadow-[0_0_30px_rgba(59,130,246,0.4)] tilt-inner group-hover:scale-110 transition duration-500">
-                            <i class="fas fa-wallet"></i>
-                        </div>
-                        <h4 class="text-2xl font-black text-white mb-2 tracking-wide">WebMoney</h4>
-                        <div class="bg-blue-500/10 text-blue-400 text-xs font-bold px-3 py-1 rounded-full mb-4 border border-blue-500/20">WMT Wallet</div>
-                        <p class="text-sm text-gray-500 mono-font break-all w-full bg-black/50 p-3 rounded-lg border border-white/5 group-hover:border-blue-500/50 group-hover:text-white transition-all">T202226490170</p>
-                        <div class="mt-6 font-bold text-blue-500 opacity-0 group-hover:opacity-100 transform translate-y-4 group-hover:translate-y-0 transition-all duration-300"><i class="fas fa-crosshairs"></i> Click to Extract</div>
-                    </div>
-                </div>
-
-                <!-- WebMoney WMZ VAULT -->
-                <div class="donation-vault tilt-element cursor-pointer group" data-tilt data-tilt-max="5" style="--border-color: #f59e0b;" onclick="copyToClipboard('Z430378899900', 'WebMoney (WMZ)', '#f59e0b')">
-                    <div class="donation-vault-inner group-hover:bg-[#111827] transition-colors">
-                        <div class="absolute inset-0 bg-amber-500/5 blur-3xl rounded-full group-hover:bg-amber-500/20 transition-all duration-500"></div>
-                        <div class="w-20 h-20 rounded-2xl bg-[#1a160f] border border-amber-500/30 flex items-center justify-center text-amber-500 text-4xl mb-6 shadow-[0_0_30px_rgba(245,158,11,0.4)] tilt-inner group-hover:scale-110 transition duration-500">
-                            <i class="fas fa-dollar-sign"></i>
-                        </div>
-                        <h4 class="text-2xl font-black text-white mb-2 tracking-wide">WebMoney</h4>
-                        <div class="bg-amber-500/10 text-amber-400 text-xs font-bold px-3 py-1 rounded-full mb-4 border border-amber-500/20">WMZ Wallet</div>
-                        <p class="text-sm text-gray-500 mono-font break-all w-full bg-black/50 p-3 rounded-lg border border-white/5 group-hover:border-amber-500/50 group-hover:text-white transition-all">Z430378899900</p>
-                        <div class="mt-6 font-bold text-amber-500 opacity-0 group-hover:opacity-100 transform translate-y-4 group-hover:translate-y-0 transition-all duration-300"><i class="fas fa-crosshairs"></i> Click to Extract</div>
-                    </div>
-                </div>
-
-                <!-- bKash VAULT (BD LOCAL) -->
-                <div class="donation-vault tilt-element cursor-pointer group" data-tilt data-tilt-max="5" style="--border-color: #ec4899;" onclick="copyToClipboard('01310211442', 'bKash (BD)', '#ec4899')">
-                    <div class="donation-vault-inner group-hover:bg-[#111827] transition-colors">
-                        <div class="absolute inset-0 bg-pink-500/5 blur-3xl rounded-full group-hover:bg-pink-500/20 transition-all duration-500"></div>
-                        <div class="w-20 h-20 rounded-2xl bg-[#1a0f16] border border-pink-500/30 flex items-center justify-center text-pink-500 text-4xl mb-6 shadow-[0_0_30px_rgba(236,72,153,0.4)] tilt-inner group-hover:scale-110 transition duration-500">
-                            <i class="fas fa-mobile-retro"></i>
-                        </div>
-                        <h4 class="text-2xl font-black text-white mb-2 tracking-wide">bKash</h4>
-                        <div class="bg-pink-500/10 text-pink-400 text-xs font-bold px-3 py-1 rounded-full mb-4 border border-pink-500/20">BD Local</div>
-                        <p class="text-sm text-gray-500 mono-font break-all w-full bg-black/50 p-3 rounded-lg border border-white/5 group-hover:border-pink-500/50 group-hover:text-white transition-all text-xl tracking-widest">01310211442</p>
-                        <div class="mt-6 font-bold text-pink-500 opacity-0 group-hover:opacity-100 transform translate-y-4 group-hover:translate-y-0 transition-all duration-300"><i class="fas fa-crosshairs"></i> Click to Extract</div>
-                    </div>
-                </div>
-
-            </div>
-        </div>
-    </section>
-
-    <!-- Footer & Hidden Contacts -->
-    <footer class="py-10 relative z-10 border-t border-white/5 bg-[#010102]">
-        <div class="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-6">
-            
-            <div class="flex items-center gap-3 text-2xl font-black tracking-tighter">
-                <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-gray-300 to-gray-600 flex items-center justify-center text-black text-sm"><i class="fas fa-bolt"></i></div>
-                JD Lab
-            </div>
-            
-            <p class="text-gray-600 text-sm font-bold uppercase tracking-widest">© 2026 ManusClaw Engine. Authored by JD.</p>
-            
-            <!-- Hidden Contact Buttons -->
-            <div class="flex gap-4">
-                <a href="https://t.me/aamoviesadmin" target="_blank" class="w-12 h-12 rounded-2xl glass-panel flex items-center justify-center text-gray-500 hover:text-sky-400 hover:border-sky-400/50 hover:bg-sky-500/10 transition-all hover:scale-110" title="Telegram Admin">
-                    <i class="fa-brands fa-telegram text-xl"></i>
-                </a>
-                <a href="https://t.me/AAMoviesofficial" target="_blank" class="w-12 h-12 rounded-2xl glass-panel flex items-center justify-center text-gray-500 hover:text-blue-400 hover:border-blue-400/50 hover:bg-blue-500/10 transition-all hover:scale-110" title="Telegram Channel">
-                    <i class="fas fa-bullhorn text-xl"></i>
-                </a>
-                <a href="https://facebook.com/itsshsshobuj" target="_blank" class="w-12 h-12 rounded-2xl glass-panel flex items-center justify-center text-gray-500 hover:text-blue-600 hover:border-blue-600/50 hover:bg-blue-600/10 transition-all hover:scale-110" title="Facebook">
-                    <i class="fa-brands fa-facebook-f text-xl"></i>
-                </a>
-                <a href="mailto:thejddev.official@gmail.com" class="w-12 h-12 rounded-2xl glass-panel flex items-center justify-center text-gray-500 hover:text-red-400 hover:border-red-400/50 hover:bg-red-500/10 transition-all hover:scale-110" title="Email">
-                    <i class="fas fa-envelope text-xl"></i>
-                </a>
-            </div>
-        </div>
-    </footer>
-
-    <!-- Toast Notification Container -->
-    <div id="toast-container"></div>
-
-    <!-- Logic Engine & Animations -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://unpkg.com/react@18.3.1/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js"></script>
+    <script src="https://unpkg.com/framer-motion@11.11.17/dist/framer-motion.js"></script>
     <script>
-        // Ultra-Cinematic Toast Notification
-        function showToast(message, subtext, colorHex) {
-            const container = document.getElementById('toast-container');
-            const toast = document.createElement('div');
-            toast.className = 'toast';
-            toast.style.borderColor = `${colorHex}50`;
-            
-            toast.innerHTML = `
-                <div class="w-12 h-12 rounded-full border-2 flex items-center justify-center text-xl" style="background: ${colorHex}20; border-color: ${colorHex}50; color: ${colorHex}; box-shadow: 0 0 20px ${colorHex}40;">
-                    <i class="fas fa-check-double"></i>
-                </div>
-                <div>
-                    <h4 class="font-black text-sm text-white tracking-wide uppercase">${message}</h4>
-                    <p class="text-xs font-mono mt-1 text-gray-400" style="color: ${colorHex};">${subtext}</p>
-                </div>
-            `;
-            
-            container.appendChild(toast);
-            
-            // Trigger animation
-            setTimeout(() => toast.classList.add('show'), 10);
-            
-            // Remove with animation
-            setTimeout(() => {
-                toast.classList.remove('show');
-                toast.style.transform = 'translateX(150%) scale(0.9)';
-                setTimeout(() => toast.remove(), 500); 
-            }, 3000);
-        }
+        window.Motion = window.FramerMotion || {
+            motion: { div:'div',span:'span',p:'p',h1:'h1',h2:'h2',h3:'h3',section:'section',main:'main',nav:'nav',button:'button',a:'a',svg:'svg',g:'g',line:'line',circle:'circle',text:'text' },
+            useInView: () => true,
+            AnimatePresence: ({ children }) => children,
+        };
+        console.error = (...a) => { if (typeof a[0]==='string' && a[0].includes('unique "key"')) return; console.error.apply(console,a); };
+    </script>
 
-        // Copy Core
-        function copyToClipboard(text, typeName, colorHex) {
-            navigator.clipboard.writeText(text).then(() => {
-                showToast(`EXTRACTED: ${typeName}`, text, colorHex);
-            }).catch(err => {
-                const tempInput = document.createElement("input");
-                tempInput.value = text;
-                document.body.appendChild(tempInput);
-                tempInput.select();
-                document.execCommand("copy");
-                document.body.removeChild(tempInput);
-                showToast(`EXTRACTED: ${typeName}`, text, colorHex);
-            });
-        }
+    <script type="text/babel">
+        const { useRef, useEffect, useState } = React;
+        const { motion, useInView } = window.Motion;
 
-        // Vanilla JS 3D Tilt Effect (High Performance)
-        document.querySelectorAll('[data-tilt]').forEach(element => {
-            const maxTilt = element.getAttribute('data-tilt-max') || 12;
-            
-            element.addEventListener('mousemove', e => {
-                const rect = element.getBoundingClientRect();
-                const x = e.clientX - rect.left;
-                const y = e.clientY - rect.top;
-                const centerX = rect.width / 2;
-                const centerY = rect.height / 2;
-                
-                const tiltX = ((y - centerY) / centerY) * -maxTilt;
-                const tiltY = ((x - centerX) / centerX) * maxTilt;
-                
-                element.style.transform = `perspective(1200px) rotateX(${tiltX}deg) rotateY(${tiltY}deg) scale3d(1.02, 1.02, 1.02)`;
-            });
-            
-            element.addEventListener('mouseleave', () => {
-                element.style.transform = `perspective(1200px) rotateX(0deg) rotateY(0deg) scale3d(1, 1, 1)`;
-                element.style.transition = 'transform 0.6s cubic-bezier(0.23, 1, 0.32, 1)';
-            });
-            
-            element.addEventListener('mouseenter', () => {
-                element.style.transition = 'transform 0.1s ease-out';
-            });
-        });
-
-        // Terminal Typewriter Effect
-        const commands = [
-            "> Initializing ManusClaw v2.0 Engine...",
-            "> Loading TOML Config: OK",
-            "> Connecting to LLM Base (temperature=0.7)...",
-            "> Spawning Plan->Act->Reflect Loop...",
-            "> [TOOL CALL] Initiating python_execute() isolation...",
-            "> Parsing output...",
-            "> STATUS: Domination sequence engaged. Awaiting directive."
-        ];
-        
-        let cmdIndex = 0;
-        let charIndex = 0;
-        const speed = 30; // typing speed
-        const pauseBetweenCmds = 500;
-        const typeTarget = document.getElementById("typewriter");
-
-        function typeWriter() {
-            if (cmdIndex < commands.length) {
-                if (charIndex < commands[cmdIndex].length) {
-                    typeTarget.innerHTML += commands[cmdIndex].charAt(charIndex);
-                    charIndex++;
-                    setTimeout(typeWriter, speed);
-                } else {
-                    typeTarget.innerHTML += "<br>";
-                    cmdIndex++;
-                    charIndex = 0;
-                    setTimeout(typeWriter, pauseBetweenCmds);
-                }
-            } else {
-                // Add blinking cursor at the end
-                typeTarget.innerHTML += '<span class="animate-pulse bg-green-400 text-green-400">_</span>';
+        // Error boundary
+        class ErrB extends React.Component {
+            constructor(p){ super(p); this.state={e:null}; }
+            static getDerivedStateFromError(e){ return {e}; }
+            render(){
+                if(this.state.e) return <div className="glass-strong p-6 rounded-2xl text-center m-4">
+                    <p className="text-amber-400 text-lg mb-1">⚡ Section unavailable</p>
+                    <p className="text-white/50 text-xs mb-3">{this.state.e.message}</p>
+                    <button onClick={()=>this.setState({e:null})} className="glass px-4 py-1 rounded-full text-xs">Retry</button>
+                </div>;
+                return this.props.children;
             }
         }
 
-        // Start typing after a short delay
-        setTimeout(typeWriter, 1000);
+        // 3D Agent
+        function Agent3D() {
+            const ref = useRef(null);
+            const [ok, setOk] = useState(false);
+            useEffect(() => {
+                const c = ref.current; if(!c || !window.THREE) { setOk(true); return; }
+                try {
+                    const s = new THREE.Scene();
+                    const cam = new THREE.PerspectiveCamera(42, c.clientWidth/Math.max(c.clientHeight,1), 0.1, 100);
+                    cam.position.z=5.5;
+                    const r = new THREE.WebGLRenderer({alpha:true,antialias:true});
+                    r.setSize(c.clientWidth,c.clientHeight); r.setPixelRatio(Math.min(devicePixelRatio,2));
+                    r.setClearColor(0,0); c.appendChild(r.domElement);
+
+                    const core = new THREE.Mesh(
+                        new THREE.IcosahedronGeometry(1.1,3),
+                        new THREE.MeshStandardMaterial({color:0xff5e00,roughness:0.18,metalness:0.85,emissive:new THREE.Color(0x2a0800)})
+                    ); s.add(core);
+                    const eyeMat = new THREE.MeshStandardMaterial({color:0x00f0ff,roughness:0.05,emissive:new THREE.Color(0x003333),emissiveIntensity:1.2});
+                    const le = new THREE.Mesh(new THREE.SphereGeometry(0.22,20,20), eyeMat); le.position.set(-0.42,0.35,0.95);
+                    const re = new THREE.Mesh(new THREE.SphereGeometry(0.22,20,20), eyeMat); re.position.set(0.42,0.35,0.95);
+                    s.add(le); s.add(re);
+                    const ring = new THREE.Mesh(new THREE.TorusGeometry(1.35,0.06,16,80), new THREE.MeshStandardMaterial({color:0xff8c1a,roughness:0.22,metalness:0.95,emissive:new THREE.Color(0x1a0500)}));
+                    ring.rotation.x=Math.PI/2.1; s.add(ring);
+                    const ring2 = new THREE.Mesh(new THREE.TorusGeometry(1.2,0.04,12,60), new THREE.MeshStandardMaterial({color:0x00aaff,roughness:0.15,metalness:0.9,emissive:new THREE.Color(0x001122)}));
+                    ring2.rotation.x=Math.PI/1.6; ring2.rotation.y=Math.PI/3; s.add(ring2);
+                    s.add(new THREE.AmbientLight(0x334466,0.9));
+                    const d1 = new THREE.DirectionalLight(0xffccaa,1.5); d1.position.set(3,3,5); s.add(d1);
+                    const d2 = new THREE.DirectionalLight(0x88ccff,0.8); d2.position.set(-2,-1,-3); s.add(d2);
+                    s.add(new THREE.PointLight(0x0066ff,0.7,8)).position.set(1,-1,2);
+
+                    let id;
+                    function anim(){
+                        id=requestAnimationFrame(anim);
+                        const t=Date.now()*0.001;
+                        core.rotation.y+=0.008; core.rotation.x=Math.sin(t*0.4)*0.1;
+                        ring.rotation.z+=0.012; ring2.rotation.z-=0.008; ring2.rotation.x+=0.005;
+                        le.material.emissiveIntensity=0.5+Math.sin(t*3.5)*0.4;
+                        re.material.emissiveIntensity=0.5+Math.cos(t*3.5)*0.4;
+                        r.render(s,cam);
+                    }
+                    anim(); setOk(true);
+                    const resize=()=>{
+                        cam.aspect=c.clientWidth/Math.max(c.clientHeight,1); cam.updateProjectionMatrix();
+                        r.setSize(c.clientWidth,c.clientHeight);
+                    };
+                    window.addEventListener('resize',resize);
+                    return ()=>{ cancelAnimationFrame(id); window.removeEventListener('resize',resize); c.removeChild(r.domElement); r.dispose(); };
+                } catch(e){ setOk(true); }
+            },[]);
+            return (
+                <div ref={ref} className="agent-3d-wrap w-full h-72 sm:h-80 md:h-96 lg:h-[440px] relative">
+                    <div className="agent-glow"/>
+                    {!ok && <div className="absolute inset-0 flex items-center justify-center z-10"><span className="text-5xl animate-bounce">🤖</span></div>}
+                </div>
+            );
+        }
+
+        // Terminal
+        function Term() {
+            const [lines, setLines] = useState([]);
+            const mounted = useRef(true);
+            const script = [
+                {t:"$ manusclaw \"Build REST API\"", c:"text-green-300"},
+                {t:"▸ Starting agent run (session 3f2a1b4c)", c:"text-blue-200"},
+                {t:"▸ Step 1/30 — PAORR loop initiated", c:"text-gray-300"},
+                {t:"▸ Tool: web_search('Python async frameworks')", c:"text-yellow-200"},
+                {t:"▸ Result: FastAPI, Litestar, Sanic found", c:"text-gray-400"},
+                {t:"▸ Step 2/30 — Writing scaffold", c:"text-gray-300"},
+                {t:"▸ Tool: str_replace_editor → api.py", c:"text-yellow-200"},
+                {t:"▸ Running tests: python_execute...", c:"text-blue-200"},
+                {t:"✓ All 14 tests passed.", c:"text-green-400 font-bold"},
+                {t:"✓ Session finished: 6 steps · 2.8s", c:"text-green-300"},
+            ];
+            useEffect(()=>{
+                mounted.current=true; let i=0;
+                const iv=setInterval(()=>{ if(!mounted.current) return; if(i<script.length){ setLines(p=>[...p,script[i]]); i++; } else clearInterval(iv); },300);
+                return ()=>{ mounted.current=false; clearInterval(iv); };
+            },[]);
+            return (
+                <div className="terminal-box w-full max-w-2xl mx-auto">
+                    {lines.map((l,i)=>l?<div key={i} className="terminal-line flex gap-2"><span className="text-amber-400 select-none">❯</span><span className={l.c}>{l.t}</span></div>:null)}
+                    <div className="flex gap-2 mt-1"><span className="text-amber-400">❯</span><span className="cursor-blk"/></div>
+                </div>
+            );
+        }
+
+        // Chat
+        function Chat() {
+            const [msgs, setMsgs] = useState([]);
+            const mounted = useRef(true);
+            const dialog = [
+                {s:'user',t:'Build me a CPU monitor CLI'},
+                {s:'agent',t:'Analyzing… using psutil + rich.'},
+                {s:'agent',t:'Installing dependencies in sandbox…'},
+                {s:'user',t:'Add live graph too.'},
+                {s:'agent',t:'Good idea. Adding matplotlib.'},
+                {s:'agent',t:'✓ Done. cpu_monitor.py — 142 lines.'},
+            ];
+            useEffect(()=>{
+                mounted.current=true; let i=0;
+                const iv=setInterval(()=>{ if(!mounted.current) return; if(i<dialog.length){ setMsgs(p=>[...p,dialog[i]]); i++; } else clearInterval(iv); },650);
+                return ()=>{ mounted.current=false; clearInterval(iv); };
+            },[]);
+            return (
+                <div className="flex flex-col gap-1 w-full max-w-sm mx-auto p-3">
+                    {msgs.map((m,i)=>m?<div key={i} className={`chat-bubble ${m.s==='user'?'chat-user':'chat-agent'}`}><span className="text-[10px] opacity-50 block mb-0.5">{m.s==='user'?'You':'🤖 ManusClaw'}</span>{m.t}</div>:null)}
+                </div>
+            );
+        }
+
+        // Mind map
+        function MindMap() {
+            const ref = useRef(null); const [vis,setVis]=useState(false);
+            useEffect(()=>{ const el=ref.current; if(!el) return; const obs=new IntersectionObserver(([e])=>{if(e.isIntersecting){setVis(true);obs.disconnect();}},{threshold:0.3}); obs.observe(el); return ()=>obs.disconnect(); },[]);
+            const nodes = [
+                {id:'pm',label:'Product\nManager',x:80,y:90,color:'#ff8c00',delay:0},
+                {id:'arch',label:'Architect',x:280,y:30,color:'#a855f7',delay:0.2},
+                {id:'eng',label:'Engineer',x:280,y:160,color:'#f59e0b',delay:0.35},
+                {id:'qa',label:'QA',x:460,y:95,color:'#10b981',delay:0.5},
+            ];
+            const edges=[{from:'pm',to:'arch'},{from:'pm',to:'eng'},{from:'arch',to:'eng'},{from:'eng',to:'qa'}];
+            return (
+                <div ref={ref} className="relative w-full max-w-lg mx-auto h-64 select-none">
+                    <svg className="absolute inset-0 w-full h-full" viewBox="0 0 540 220">
+                        {edges.map((e,i)=>{ const f=nodes.find(n=>n.id===e.from), t=nodes.find(n=>n.id===e.to); return <line key={i} x1={f.x+28} y1={f.y+28} x2={t.x+28} y2={t.y+28} stroke="rgba(255,255,255,0.25)" strokeWidth="2" className="mind-line" style={{animationDelay:`${0.4+i*0.25}s`,animationPlayState:vis?'running':'paused'}}/>; })}
+                    </svg>
+                    {nodes.map(n=><div key={n.id} className="mind-node" style={{left:n.x,top:n.y,borderColor:n.color,color:n.color,animationDelay:`${n.delay}s`,animationPlayState:vis?'running':'paused'}}>{n.label.split('\n').map((l,i)=><span key={i}>{l}</span>)}</div>)}
+                </div>
+            );
+        }
+
+        // Reveal
+        function Rev({children,className="",delay=0}) {
+            const ref=useRef(null); const [v,setV]=useState(false);
+            useEffect(()=>{ const el=ref.current; if(!el) return; const o=new IntersectionObserver(([e])=>{if(e.isIntersecting){setV(true);o.disconnect();}},{threshold:0.12}); o.observe(el); return ()=>o.disconnect(); },[]);
+            return <div ref={ref} className={`reveal-el ${v?'visible':''} ${className}`} style={{transitionDelay:`${delay}s`}}>{children}</div>;
+        }
+
+        function App() {
+            const [copied,setCopied]=useState('');
+            const copy=(t)=>{ navigator.clipboard.writeText(t); setCopied(t); setTimeout(()=>setCopied(''),1800); };
+            const features = [
+                {t:'6 LLM Providers',d:'OpenAI, Anthropic, Gemini, Mistral, Bedrock, and any OpenAI-compatible endpoint.'},
+                {t:'Offline Mode',d:'Ollama, LM Studio, direct GGUF files — zero internet, fully air-gapped.'},
+                {t:'FTS5 Memory',d:'Cross-session SQLite search so the agent never forgets.'},
+                {t:'Cron Scheduler',d:'Schedule any prompt, deliver results to Telegram/Discord.'},
+                {t:'Platform Control',d:'Autonomous GitHub, Vercel, WordPress, HuggingFace deployments.'},
+                {t:'Desktop GUI',d:'Flet-based native app for Linux, macOS, Windows.'},
+            ];
+            const donations = [
+                {label:'USDT (TRC20)',addr:'TH75J4zaMPwhyR3QxEFdwTCgU2Pp3yPUEr'},
+                {label:'WebMoney WMT',addr:'T202226490170'},
+                {label:'WebMoney WMZ',addr:'Z430378899900'},
+                {label:'bKash (BD)',addr:'01310211442'},
+            ];
+            const contacts = [
+                {name:'Email',url:'mailto:thejddev.official@gmail.com'},
+                {name:'Telegram',url:'https://t.me/aamoviesadmin'},
+                {name:'Facebook',url:'https://fb.com/itsshsshobuj'},
+                {name:'GitHub',url:'https://github.com/The-JDdev'},
+                {name:'Web Interface',url:'https://the-jddev.github.io/ManusClaw'},
+            ];
+
+            return (
+                <main className="relative">
+                    <div className="fixed inset-0 -z-10 bg-gradient-to-br from-[#06060c] via-[#030308] to-[#010104]"/>
+
+                    {/* Nav */}
+                    <nav className="fixed top-0 w-full z-40 px-6 py-4 flex items-center justify-between glass-strong rounded-b-[2rem]">
+                        <span className="font-mono font-bold text-amber-400 text-sm">ManusClaw v4.0</span>
+                        <div className="hidden md:flex gap-6 text-sm text-white/70">
+                            <a href="#features" className="hover:text-white transition">Features</a>
+                            <a href="#terminal" className="hover:text-white transition">Demo</a>
+                            <a href="#mind" className="hover:text-white transition">Pipeline</a>
+                            <a href="#contact" className="hover:text-white transition">Contact</a>
+                            <a href="#donate" className="hover:text-amber-400 transition">Donate</a>
+                        </div>
+                    </nav>
+
+                    {/* Hero */}
+                    <section className="min-h-screen flex flex-col items-center justify-center pt-24 pb-12 px-5 text-center">
+                        <Rev><ErrB><div className="glass-strong p-4 sm:p-6 rounded-[2.5rem] mb-8 max-w-4xl w-full"><Agent3D/></div></ErrB></Rev>
+                        <Rev delay={0.15}><h1 className="font-heading italic text-5xl sm:text-6xl md:text-7xl lg:text-8xl leading-[0.85] tracking-[-3px]"><span className="hl">ManusClaw</span> <span className="text-white/90">v4.0</span></h1></Rev>
+                        <Rev delay={0.3}><p className="mt-5 text-base sm:text-lg md:text-xl text-white/65 font-light max-w-xl">The <span className="hl-cyan hl">autonomous AI ecosystem</span> — multi‑agent, self‑improving, with skills, memory, and offline power.</p></Rev>
+                        <Rev delay={0.45}><div className="flex flex-wrap gap-3 mt-7"><a href="#terminal" className="glass-strong px-5 py-3 rounded-full font-semibold text-sm flex items-center gap-2 hover:scale-105 transition">⚡ Live Demo</a><a href="https://github.com/The-JDdev/ManusClaw" target="_blank" className="glass px-5 py-3 rounded-full font-medium text-sm flex items-center gap-2 hover:bg-white/8 transition">⭐ Star on GitHub</a></div></Rev>
+                    </section>
+
+                    {/* Terminal */}
+                    <section id="terminal" className="py-20 px-5"><Rev><h2 className="font-heading italic text-4xl md:text-5xl text-center mb-4">Watch it <span className="hl">execute</span></h2></Rev><Rev delay={0.2}><ErrB><Term/></ErrB></Rev></section>
+
+                    {/* Chat */}
+                    <section className="py-20 px-5 bg-black/20"><Rev><h2 className="font-heading italic text-4xl md:text-5xl text-center mb-10">Conversational <span className="hl-cyan hl">control</span></h2></Rev><Rev delay={0.2}><ErrB><Chat/></ErrB></Rev></section>
+
+                    {/* Mind map */}
+                    <section id="mind" className="py-20 px-5"><Rev><h2 className="font-heading italic text-4xl md:text-5xl text-center mb-4">Multi‑Agent <span className="hl">DAG Pipeline</span></h2></Rev><Rev delay={0.15}><MindMap/></Rev></section>
+
+                    {/* Features */}
+                    <section id="features" className="py-20 px-5"><Rev><h2 className="font-heading italic text-4xl md:text-5xl text-center mb-16">Everything <span className="hl">built‑in</span></h2></Rev>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 max-w-5xl mx-auto">{features.map((f,i)=><Rev key={i} delay={i*0.08}><div className="glass card-hover p-6 rounded-2xl h-full"><h3 className="font-heading italic text-2xl mb-3">{f.t}</h3><p className="text-white/55 text-sm">{f.d}</p></div></Rev>)}</div>
+                    </section>
+
+                    {/* Donate */}
+                    <section id="donate" className="py-20 px-5 border-t border-white/5"><Rev><h2 className="font-heading italic text-4xl md:text-5xl text-center mb-4">💎 <span className="hl">Fuel the Beast</span></h2><p className="text-center text-white/50 max-w-md mx-auto mb-10 text-sm">Built from Bangladesh on a smartphone. Your support keeps this engine alive.</p></Rev>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-xl mx-auto">{donations.map((d,i)=><Rev key={i} delay={i*0.08}><div className="glass p-4 rounded-2xl flex items-center justify-between gap-3"><div className="min-w-0"><span className="text-white/65 text-xs">{d.label}</span><p className="font-mono text-amber-300/80 text-xs mt-1 truncate">{d.addr}</p></div><button onClick={()=>copy(d.addr)} className="glass rounded-full p-2 hover:bg-white/10">{copied===d.addr?'✓':'📋'}</button></div></Rev>)}</div>
+                    </section>
+
+                    {/* Contact */}
+                    <section id="contact" className="py-20 px-5 border-t border-white/5"><Rev><h2 className="font-heading italic text-4xl md:text-5xl text-center mb-8">Contact & Community</h2></Rev>
+                        <div className="flex flex-wrap justify-center gap-4 max-w-2xl mx-auto">{contacts.map((c,i)=><Rev key={i} delay={i*0.08}><a href={c.url} target="_blank" className="glass px-5 py-3 rounded-full text-sm font-medium hover:bg-white/10 transition">{c.name}</a></Rev>)}</div>
+                        <Rev delay={0.4}><p className="text-center text-white/25 text-xs mt-10">MIT License · Built by <a href="https://github.com/The-JDdev" className="text-amber-400/50 underline">The-JDdev</a></p></Rev>
+                    </section>
+                </main>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<ErrB><App/></ErrB>);
     </script>
+    <noscript><div style="color:white;text-align:center;padding:3rem;">JavaScript required.</div></noscript>
 </body>
 </html>
