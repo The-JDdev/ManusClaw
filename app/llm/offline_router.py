@@ -98,8 +98,8 @@ class GGUFRouter:
 
 class OllamaRouter:
     """
-    Direct Ollama integration (REST /api/chat).
-    Works with any model pulled via `ollama pull <model>`.
+    Direct Ollama integration using the official `ollama` SDK.
+    Supports both local Ollama and Ollama Cloud.
     """
 
     def __init__(self, model: str = "llama3.2:3b",
@@ -107,56 +107,64 @@ class OllamaRouter:
         self.model = model
         self.base = base_url.rstrip("/")
         try:
-            import httpx
-            self._httpx = True
+            from ollama import AsyncClient
+            import os
+            self._has_sdk = True
+            
+            headers = None
+            api_key = os.environ.get('OLLAMA_API_KEY')
+            if api_key:
+                headers = {'Authorization': f'Bearer {api_key}'}
+            
+            self.client = AsyncClient(host=self.base, headers=headers)
         except ImportError:
-            self._httpx = False
+            self._has_sdk = False
+            self.client = None
 
-    async def _post(self, endpoint: str, payload: dict) -> dict:
-        import json as _j
-        url = f"{self.base}{endpoint}"
-        data = _j.dumps(payload).encode()
-        if self._httpx:
-            import httpx
-            r = await asyncio.to_thread(
-                httpx.post, url, content=data,
-                headers={"Content-Type": "application/json"},
-                timeout=None,
-            )
-            return r.json()
-        else:
-            import urllib.request
-            req = urllib.request.Request(
-                url, data=data,
-                headers={"Content-Type": "application/json"}, method="POST"
-            )
-            resp = await asyncio.to_thread(urllib.request.urlopen, req)
-            return _j.loads(resp.read().decode())
-
-    async def chat(self, messages: List[dict], max_tokens: int = 2048,
+    async def chat(self, messages: List[dict], tools: Optional[list] = None, max_tokens: int = 2048,
                     temperature: float = 0.7, **_) -> dict:
         """Async Ollama chat returning OpenAI-format dict."""
-        resp = await self._post("/api/chat", {
+        if not self._has_sdk:
+            raise ImportError("The 'ollama' SDK is required. Run: pip install ollama")
+
+        options = {"num_predict": max_tokens, "temperature": temperature}
+        kwargs = {
             "model": self.model,
             "messages": messages,
-            "stream": False,
-            "options": {"num_predict": max_tokens, "temperature": temperature},
-        })
-        # Ollama /api/chat returns {"message": {"role": ..., "content": ...}}
-        # Convert to OpenAI format
+            "options": options,
+            "stream": False
+        }
+        if tools:
+            kwargs["tools"] = tools
+
+        resp = await self.client.chat(**kwargs)
+        
+        msg = resp.get("message", {})
+        
+        tool_calls = []
+        if "tool_calls" in msg and msg["tool_calls"]:
+            import time, json
+            for i, tc in enumerate(msg["tool_calls"]):
+                fn = tc.get("function", {})
+                args = fn.get("arguments", {})
+                tool_calls.append({
+                    "id": f"ollama-{fn.get('name', 'fn')}-{int(time.time())}-{i}",
+                    "type": "function",
+                    "function": {
+                        "name": fn.get("name", ""),
+                        "arguments": json.dumps(args) if isinstance(args, dict) else args
+                    }
+                })
+        
         return {
             "choices": [{
                 "message": {
-                    "role": resp.get("message", {}).get("role", "assistant"),
-                    "content": resp.get("message", {}).get("content", ""),
-                    "tool_calls": None,
+                    "role": msg.get("role", "assistant"),
+                    "content": msg.get("content") or None,
+                    "tool_calls": tool_calls or None,
                 }
             }]
         }
-
-    async def list_models(self) -> List[str]:
-        resp = await self._post("/api/tags", {})
-        return [m["name"] for m in resp.get("models", [])]
 
 
 # ─────────────────────────────────────────────────────────────────────────────

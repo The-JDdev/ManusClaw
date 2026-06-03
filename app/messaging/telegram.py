@@ -22,6 +22,37 @@ class TelegramAdapter(BaseMessagingAdapter):
             logger.info("[Telegram] Stub mode — not configured")
             return
         logger.info("[Telegram] Starting polling loop")
+        import asyncio
+        import aiohttp
+        
+        self._running = True
+        offset = 0
+        
+        async with aiohttp.ClientSession() as session:
+            while self._running:
+                url = f"https://api.telegram.org/bot{self.token}/getUpdates?timeout=30&offset={offset}"
+                try:
+                    async with session.get(url) as resp:
+                        if resp.status != 200:
+                            logger.error(f"[Telegram] Error {resp.status}")
+                            await asyncio.sleep(5)
+                            continue
+                        
+                        data = await resp.json()
+                        for update in data.get("result", []):
+                            offset = update["update_id"] + 1
+                            if "message" in update and "text" in update["message"]:
+                                msg = IncomingMessage(
+                                    platform="telegram",
+                                    channel_id=str(update["message"]["chat"]["id"]),
+                                    user_id=str(update["message"]["from"]["id"]),
+                                    text=update["message"]["text"],
+                                    session_key=f"tg_{update['message']['chat']['id']}"
+                                )
+                                await on_message(msg)
+                except Exception as e:
+                    logger.error(f"[Telegram] Polling error: {e}")
+                    await asyncio.sleep(5)
 
     async def send(self, channel_id: str, text: str) -> None:
         if not self.is_configured():
