@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Optional
+
 from app.agent.toolcall import ToolCallAgent
 from app.tool.base import ToolCollection
 from app.tool.browser_use_tool import BrowserUseTool
@@ -19,11 +21,11 @@ class BrowserAgent(ToolCallAgent):
     name = "browser"
     system_prompt = BROWSER_PROMPT
 
-    def __init__(self) -> None:
+    def __init__(self, mode=None, session_id: Optional[str] = None) -> None:
         tools = ToolCollection(
             BrowserUseTool(),
             WebSearch(),
             Crawl4AITool(),
             Terminate(),
         )
-        super().__init__(tools=tools)
+        super().__init__(tools=tools, mode=mode, session_id=session_id)

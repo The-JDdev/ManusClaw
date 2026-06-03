@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import random
+import re
 from typing import Optional
 
 from app.agent.react import ReActAgent
@@ -20,6 +21,14 @@ from app.tool.terminate import Terminate
 MAX_TOOL_RETRIES = 4
 TOOL_RETRY_BASE  = 1.0
 TOOL_RETRY_MAX   = 20.0
+
+_DONE_PATTERNS = [
+    r"\btask\s+(?:is\s+)?complete\b",
+    r"\ball\s+done\b",
+    r"\btask\s+finished\b",
+    r"(?:^|\n)done[.!]?\s*$",
+    r"\bwork\s+is\s+complete\b",
+]
 
 
 # ---------------------------------------------------------------------------
@@ -263,17 +272,7 @@ tool or different arguments — DO NOT repeat the same failing call.
             if m.role == Role.ASSISTANT and m.content:
                 last_content = m.content.lower()
                 break
-        # FIX: "done" was too broad — matched "not done yet", "halfway done",
-        # "I've done the analysis", etc. Use anchored patterns instead.
-        import re as _re
-        _DONE_PATTERNS = [
-            r"\btask\s+(?:is\s+)?complete\b",
-            r"\ball\s+done\b",
-            r"\btask\s+finished\b",
-            r"(?:^|\n)done[.!]?\s*$",   # Only if entire content is just "done."
-            r"\bwork\s+is\s+complete\b",
-        ]
-        if any(_re.search(p, last_content) for p in _DONE_PATTERNS):
+        if any(re.search(p, last_content) for p in _DONE_PATTERNS):
             self.state = AgentState.FINISHED
 
         return result

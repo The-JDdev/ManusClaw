@@ -1,31 +1,54 @@
 from __future__ import annotations
 
 """
-ManusClaw CLI — prompt_toolkit input layer + Rich output.
+ManusClaw CLI — Persistent AI Operating Shell
 
-Layout:
-  - Fixed header: model name, session info, token usage
-  - Scrollable transcript with role-emoji prefixes
-  - Fixed footer input area (multi-line, slash-command autocomplete)
-  - Animated spinner during API calls
+Activation:
+  Just type: manusclaw
+  The AI environment activates and enters a persistent interactive shell.
+  After activation, type tasks naturally — no need to prefix with 'manusclaw' again.
+
+  Example:
+    $ manusclaw
+    ManusClaw v4.0.0 — AI Operating Environment Active
+    You> Create a Python web scraper for me
+    You> Build a website
+    You> Analyze this data
+
+Features:
+  - Persistent AI shell (activation via single 'manusclaw' command)
+  - Task queue with background execution and resume capability
+  - Natural language prompts after activation (no repeated command prefix)
+  - Slash commands for session/task management
   - Skin engine (YAML-based, 4 built-in skins: default/ares/mono/slate)
+  - Spinner during API calls
+  - Auto-resume of interrupted tasks on startup
 
 Slash commands:
-  /model   — show/switch LLM model
-  /skills  — list loaded skills
-  /tools   — list available tools
-  /memory  — show MEMORY.md content
-  /compress — compress current session context
-  /new     — start new session
-  /resume  — resume a past session
-  /branch  — branch current session
-  /help    — show commands
-  /exit    — quit
+  /model      — show/switch LLM model
+  /skills     — list loaded skills
+  /tools      — list available tools
+  /memory     — show MEMORY.md content
+  /compress   — compress current session context
+  /new        — start new session
+  /resume     — resume a past session
+  /branch     — branch current session
+  /tasks      — show task queue status
+  /bg <task>  — submit task to background queue
+  /help       — show commands
+  /exit       — quit (running tasks continue in background)
 """
 
 import asyncio
+import signal
 import sys
 from typing import Optional
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Version
+# ──────────────────────────────────────────────────────────────────────────────
+
+VERSION = "4.0.0"
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Skin definitions (data-driven, YAML-loadable)
@@ -42,7 +65,7 @@ ROLE_EMOJI = {"user": "👤", "assistant": "🤖", "tool": "🔧", "system": "�
 
 SLASH_COMMANDS = [
     "/model", "/skills", "/tools", "/memory", "/compress",
-    "/new", "/resume", "/branch", "/help", "/exit",
+    "/new", "/resume", "/branch", "/tasks", "/bg", "/help", "/exit",
 ]
 
 
@@ -65,6 +88,31 @@ def _get_skin(name: str = "default") -> dict:
 # ──────────────────────────────────────────────────────────────────────────────
 # Rich-based output helpers
 # ──────────────────────────────────────────────────────────────────────────────
+
+def _print_banner(skin: dict, model_name: str = "") -> None:
+    """Print the ManusClaw activation banner."""
+    try:
+        from rich.console import Console
+        from rich.panel import Panel
+        from rich.text import Text
+        console = Console()
+        banner_text = Text()
+        banner_text.append("ManusClaw", style=f"bold {skin['accent']}")
+        banner_text.append(f" v{VERSION}", style="bold white")
+        banner_text.append("\nAI Operating Environment Active", style=skin['accent'])
+        if model_name:
+            banner_text.append(f"\nModel: {model_name}", style="dim")
+        banner_text.append("\n\nType your task naturally. Use /help for commands.", style="dim")
+        console.print(Panel(banner_text, border_style=skin["border"], expand=False, padding=(1, 2)))
+    except ImportError:
+        print(f"\n  ╔══════════════════════════════════════════╗")
+        print(f"  ║  ManusClaw v{VERSION}                       ║")
+        print(f"  ║  AI Operating Environment Active         ║")
+        if model_name:
+            print(f"  ║  Model: {model_name:<33}║")
+        print(f"  ║  Type tasks naturally. /help for commands ║")
+        print(f"  ╚══════════════════════════════════════════╝\n")
+
 
 def _print_header(skin: dict, model: str, session_id: str, step: int = 0) -> None:
     try:
@@ -121,7 +169,6 @@ class Spinner:
     def __enter__(self):
         try:
             from rich.console import Console
-            from rich import get_console
             self._console = Console()
             self._status = self._console.status(
                 f"[{self.skin['accent']}]{self.verb}...[/]", spinner="dots"
@@ -142,13 +189,28 @@ class Spinner:
 # Slash command handlers
 # ──────────────────────────────────────────────────────────────────────────────
 
-async def _handle_slash(cmd: str, agent=None, session_id: str = "") -> Optional[str]:
+async def _handle_slash(cmd: str, agent=None, session_id: str = "",
+                        task_queue=None) -> Optional[str]:
     parts = cmd.strip().split(None, 1)
     command = parts[0].lower()
     arg = parts[1] if len(parts) > 1 else ""
 
     if command == "/help":
-        return "Commands:\n" + "\n".join(f"  {c}" for c in SLASH_COMMANDS)
+        help_text = (
+            "ManusClaw Commands:\n"
+            "  /model [name]  — show/switch LLM model\n"
+            "  /skills        — list loaded skills\n"
+            "  /tools         — list available tools\n"
+            "  /memory        — show MEMORY.md content\n"
+            "  /compress      — compress current session context\n"
+            "  /new           — start new session\n"
+            "  /resume        — resume a past session\n"
+            "  /branch        — branch current session\n"
+            "  /tasks         — show background task queue status\n"
+            "  /bg <task>     — submit task to background queue\n"
+            "  /exit          — quit (background tasks continue)\n"
+        )
+        return help_text
 
     if command == "/model":
         from app.config import Config
@@ -215,6 +277,35 @@ async def _handle_slash(cmd: str, agent=None, session_id: str = "") -> Optional[
             lines.append(f"  {s['id']} | {s['state']} | {s['goal'][:50]}")
         return "\n".join(lines)
 
+    if command == "/tasks":
+        if task_queue:
+            summary = await task_queue.status_summary()
+            lines = ["Task Queue:"]
+            lines.append(f"  Total: {summary.get('total', 0)}")
+            lines.append(f"  Queued: {summary.get('queued', 0)}")
+            lines.append(f"  Running: {summary.get('running', 0)}")
+            lines.append(f"  Completed: {summary.get('completed', 0)}")
+            lines.append(f"  Failed: {summary.get('failed', 0)}")
+            lines.append(f"  Paused: {summary.get('paused', 0)}")
+            # Show recent tasks
+            tasks = await task_queue.list_tasks()
+            recent = [t for t in tasks if t.status.value in ("queued", "running", "paused")][:5]
+            if recent:
+                lines.append("\n  Active tasks:")
+                for t in recent:
+                    lines.append(f"    [{t.status.value}] {t.id} — {t.prompt[:50]}")
+            return "\n".join(lines)
+        return "Task queue not initialized."
+
+    if command == "/bg":
+        if not arg:
+            return "Usage: /bg <task description>"
+        if task_queue:
+            from app.task_queue import TaskPriority
+            task = await task_queue.submit(arg, priority=TaskPriority.NORMAL)
+            return f"Task submitted to background queue: {task.id}\nUse /tasks to monitor progress."
+        return "Task queue not initialized."
+
     if command == "/exit":
         return "EXIT"
 
@@ -246,12 +337,40 @@ def _get_session():
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Main interactive loop
+# Background task executor
+# ──────────────────────────────────────────────────────────────────────────────
+
+async def _execute_background_task(task_entry) -> str:
+    """Execute a task from the background queue."""
+    from app.agent.manus import Manus
+    agent = Manus()
+    try:
+        # If task has a checkpoint, restore memory state
+        if task_entry.checkpoint and task_entry.checkpoint.memory_snapshot:
+            from app.schema import Message
+            messages = [Message.from_dict(m) for m in task_entry.checkpoint.memory_snapshot]
+            agent.memory.messages = messages
+            logger.info(f"[BG Task {task_entry.id}] Restored from checkpoint at step {task_entry.checkpoint.step_count}")
+
+        result = await agent.run(task_entry.prompt)
+
+        # Save checkpoint periodically is handled by the agent loop
+        return result or "Task completed (no output)"
+    except Exception as e:
+        return f"Task failed: {e}"
+    finally:
+        await agent.cleanup()
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Main interactive loop — persistent AI operating shell
 # ──────────────────────────────────────────────────────────────────────────────
 
 async def _interactive_loop(skin_name: str = "default") -> None:
     from app.agent.manus import Manus
     from app.config import Config
+    from app.task_queue import TaskQueue
+    from app.logger import logger
 
     skin = _get_skin(skin_name)
     cfg = Config.get()
@@ -261,26 +380,48 @@ async def _interactive_loop(skin_name: str = "default") -> None:
     pt_session = _get_session()
     completer = _get_completer()
 
-    _print_header(skin, model_name, "new", 0)
+    # Initialize task queue for background execution
+    task_queue = TaskQueue(max_workers=1)
+    task_queue.set_executor(_execute_background_task)
+
+    # Resume any interrupted tasks from previous sessions
+    resumed_count = await task_queue.resume_interrupted()
+    if resumed_count > 0:
+        _print_message("system", f"Resumed {resumed_count} interrupted task(s) from previous session.", skin)
+
+    # Start background workers
+    await task_queue.start_workers()
+
+    # Print activation banner
+    _print_banner(skin, model_name)
+
+    # Setup graceful shutdown
+    shutdown_event = asyncio.Event()
+
+    def _signal_handler(sig, frame):
+        shutdown_event.set()
 
     try:
-        from rich.console import Console
-        console = Console()
-        console.print(f"[{skin['accent']}]ManusClaw ready. Type your task or /help for commands.[/]\n")
-    except ImportError:
-        print("ManusClaw ready. Type your task or /help for commands.\n")
+        # Register signal handlers for graceful shutdown
+        loop = asyncio.get_event_loop()
+        for sig in (signal.SIGINT, signal.SIGTERM):
+            try:
+                loop.add_signal_handler(sig, _signal_handler, sig, None)
+            except (NotImplementedError, OSError):
+                pass  # Windows doesn't support add_signal_handler
+    except RuntimeError:
+        pass
 
-    while True:
+    while not shutdown_event.is_set():
         try:
             if pt_session and completer:
-                from prompt_toolkit import prompt
                 user_input = await asyncio.get_event_loop().run_in_executor(
                     None, lambda: pt_session.prompt("You> ", completer=completer, multiline=False)
                 )
             else:
                 user_input = await asyncio.get_event_loop().run_in_executor(None, input, "You> ")
         except (EOFError, KeyboardInterrupt):
-            print("\nGoodbye.")
+            print("\n")
             break
 
         user_input = user_input.strip()
@@ -289,20 +430,23 @@ async def _interactive_loop(skin_name: str = "default") -> None:
 
         # Handle slash commands
         if user_input.startswith("/"):
-            result = await _handle_slash(user_input, agent=agent, session_id=session_id)
+            result = await _handle_slash(
+                user_input, agent=agent, session_id=session_id,
+                task_queue=task_queue,
+            )
             if result == "EXIT":
-                print("Goodbye.")
                 break
             if result == "NEW_SESSION":
+                await agent.cleanup()
                 agent = Manus()
                 session_id = ""
-                print("Started new session.")
+                _print_message("system", "Started new session.", skin)
                 continue
             if result:
                 _print_message("system", result, skin)
             continue
 
-        # Regular prompt — run agent
+        # Regular prompt — run agent (foreground)
         _print_message("user", user_input, skin)
         verb = "thinking" if "?" not in user_input else "researching"
 
@@ -310,27 +454,39 @@ async def _interactive_loop(skin_name: str = "default") -> None:
             with Spinner(verb=verb, skin=skin):
                 result = await agent.run(user_input)
             session_id = agent._session_id or ""
-            _print_message("assistant", result, skin)
+            _print_message("assistant", result or "(no output)", skin)
             _print_header(skin, model_name, session_id, agent._step_count)
         except Exception as e:
             _print_message("error", f"Error: {e}", skin)
 
-        # Reset agent state for next prompt
+        # Reset agent state for next prompt (without losing session context)
         from app.schema import AgentState
-        from app.memory.short_term import ShortTermMemory
         agent.state = AgentState.IDLE
         agent._step_count = 0
-        agent.memory = ShortTermMemory()
 
+    # Graceful shutdown
+    _print_message("system", "Shutting down... Background tasks will continue and can be resumed next session.", skin)
+    await task_queue.stop_workers()
+    await agent.cleanup()
+    print("Goodbye. ManusClaw tasks are saved — run 'manusclaw' again to resume.")
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Entry point
+# ──────────────────────────────────────────────────────────────────────────────
 
 def main() -> None:
     import argparse
-    parser = argparse.ArgumentParser(description="ManusClaw autonomous AI agent")
-    parser.add_argument("prompt", nargs="*", help="Task prompt (omit for interactive mode)")
+    parser = argparse.ArgumentParser(
+        description="ManusClaw — Autonomous AI Operating Environment",
+        prog="manusclaw",
+    )
+    parser.add_argument("prompt", nargs="*", help="Task prompt (omit for interactive shell)")
     parser.add_argument("--skin", default="default", choices=list(SKINS.keys()), help="UI skin")
     parser.add_argument("--model", help="Override LLM model")
     parser.add_argument("--profile", help="Config profile name")
     parser.add_argument("--no-color", action="store_true", help="Disable colors")
+    parser.add_argument("--version", action="version", version=f"ManusClaw v{VERSION}")
     args = parser.parse_args()
 
     if args.profile:
@@ -342,21 +498,33 @@ def main() -> None:
         os.environ["LLM_MODEL_OVERRIDE"] = args.model
 
     if args.prompt:
-        # Single-shot mode
+        # Single-shot mode: manusclaw "do something"
         prompt_text = " ".join(args.prompt)
 
         async def _run_once():
             from app.agent.manus import Manus
-            agent = Manus()
+            from app.task_queue import TaskQueue
             skin = _get_skin(args.skin)
+            agent = Manus()
+
+            # Also init task queue to resume interrupted tasks
+            task_queue = TaskQueue(max_workers=1)
+            resumed = await task_queue.resume_interrupted()
+            if resumed:
+                _print_message("system", f"Resumed {resumed} background task(s).", skin)
+
             with Spinner(verb="thinking", skin=skin):
                 result = await agent.run(prompt_text)
-            _print_message("assistant", result, skin)
+            _print_message("assistant", result or "(no output)", skin)
+            await agent.cleanup()
 
         asyncio.run(_run_once())
     else:
-        # Interactive mode
-        asyncio.run(_interactive_loop(skin_name=args.skin))
+        # Interactive shell mode: manusclaw (persistent AI operating environment)
+        try:
+            asyncio.run(_interactive_loop(skin_name=args.skin))
+        except KeyboardInterrupt:
+            print("\nGoodbye. Run 'manusclaw' again to resume.")
 
 
 if __name__ == "__main__":

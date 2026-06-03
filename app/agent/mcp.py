@@ -20,9 +20,9 @@ class MCPAgent(ToolCallAgent):
     name = "mcp"
     system_prompt = MCP_PROMPT
 
-    def __init__(self, server_url: Optional[str] = None, connection: str = "stdio") -> None:
+    def __init__(self, server_url: Optional[str] = None, connection: str = "stdio", mode=None, session_id: Optional[str] = None) -> None:
         tools = ToolCollection(Terminate())
-        super().__init__(tools=tools)
+        super().__init__(tools=tools, mode=mode, session_id=session_id)
         self._server_url = server_url
         self._connection = connection
         self._mcp_clients: list[MCPClient] = []

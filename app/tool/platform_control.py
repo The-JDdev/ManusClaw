@@ -221,14 +221,43 @@ class PlatformControlTool(BaseTool):
         "the provided credentials permit."
     )
 
-    platform: str = Field(..., description="Platform name, e.g. 'github'")
-    credentials: dict = Field(
-        ..., description="Auth credentials dict (see tool docstring)"
-    )
-    method: str = Field("GET", description="HTTP method")
-    path: str = Field(..., description="API path to call")
-    params: Optional[dict] = Field(None, description="Query params")
-    body: Optional[Any] = Field(None, description="JSON body")
+    # FIX: Proper OpenAI function-calling parameters schema (was using Pydantic Fields incorrectly)
+    parameters = {
+        "type": "object",
+        "properties": {
+            "platform": {
+                "type": "string",
+                "description": "Platform name, e.g. 'github', 'vercel', 'discord', 'telegram', 'netlify', 'huggingface', 'wordpress', 'generic'",
+            },
+            "credentials": {
+                "type": "object",
+                "description": (
+                    "Auth credentials dict. Keys vary by platform: "
+                    "github→token, vercel→token+team_id, wordpress→site_url+username+app_password, "
+                    "huggingface→token, netlify→token, discord→bot_token, telegram→bot_token, "
+                    "generic→base_url+token+auth_scheme+headers"
+                ),
+            },
+            "method": {
+                "type": "string",
+                "description": "HTTP method: GET, POST, PUT, PATCH, or DELETE",
+                "default": "GET",
+            },
+            "path": {
+                "type": "string",
+                "description": "API path to call, e.g. /repos/owner/repo",
+            },
+            "params": {
+                "type": "object",
+                "description": "URL query parameters (dict)",
+            },
+            "body": {
+                "type": "object",
+                "description": "JSON request body (dict)",
+            },
+        },
+        "required": ["platform", "credentials", "path"],
+    }
 
     async def execute(self, **kwargs: Any) -> ToolResult:
         """

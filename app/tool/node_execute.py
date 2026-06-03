@@ -31,8 +31,8 @@ class NodeExecute(BaseTool):
                     stderr=asyncio.subprocess.PIPE,
                 )
                 stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
-                out = stdout.decode()[:8192]
-                err = stderr.decode()[:2048]
+                out = stdout.decode()
+                err = stderr.decode()
                 if proc.returncode != 0:
                     return ToolResult(output=out, error=err or f"Exit {proc.returncode}")
                 return ToolResult(output=out or "(no output)")

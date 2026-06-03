@@ -332,13 +332,15 @@ class GoogleClient:
         except ImportError:
             raise ImportError("pip install google-generativeai")
         genai.configure(api_key=cfg.api_key)
+        self._genai = genai  # FIX: Store module reference for use in chat()
         self._model_name: str = cfg.model or "gemini-1.5-pro"
         self.max_tokens: int = cfg.max_tokens
         self.temperature: float = cfg.temperature
 
     @staticmethod
     def _to_google_history(messages: list[dict]) -> tuple:
-        """FIX: Convert OpenAI-format messages to Google genai chat history format."""
+        """FIX: Convert OpenAI-format messages to Google genai chat history format.
+        Now includes tool messages by merging them into user role parts."""
         system_txt = None
         history = []
         for msg in messages:
@@ -350,7 +352,14 @@ class GoogleClient:
                 history.append({"role": "user", "parts": [content]})
             elif role == "assistant":
                 history.append({"role": "model", "parts": [content]})
-            # tool messages: skip (not supported in simple chat history)
+            elif role == "tool":
+                # FIX: Include tool results by appending as user message
+                tool_name = msg.get("name", "unknown")
+                tool_content = f"[Tool Result ({tool_name})]: {content}"
+                if history and history[-1]["role"] == "user":
+                    history[-1]["parts"].append(tool_content)
+                else:
+                    history.append({"role": "user", "parts": [tool_content]})
         return system_txt, history
 
     async def chat(self, messages: list[dict[str, Any]], tools: Optional[list[dict[str, Any]]] = None,

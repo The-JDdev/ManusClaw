@@ -130,6 +130,32 @@ _HEURISTIC_SIGNALS: dict[str, list[tuple[str, float]]] = {
         (r"\b(done|finished|complete|all steps|final|accomplished|task complete|nothing more|no more steps)\b", 0.70),
         (r"\b(stop|exit|quit|end|halt)\b", 0.30),
     ],
+    "image_gen": [
+        (r"\b(image|picture|photo|draw|generate image|create image|artwork|illustration|icon|logo|graphic|render)\b", 0.55),
+        (r"\b(dalle|midjourney|stable diffusion|visual|design)\b", 0.25),
+    ],
+    "delegate": [
+        (r"\b(delegate|subtask|sub-agent|sub agent|hand off|assign task|spawn agent|another agent)\b", 0.55),
+        (r"\b(parallel|concurrent|multiple agents|team of agents)\b", 0.20),
+    ],
+    "memory": [
+        (r"\b(remember|memory|note|store|recall|memo|save for later|persist|forget|update preference)\b", 0.55),
+        (r"\b(USER\.md|MEMORY\.md|preferences|facts about|knowledge base)\b", 0.25),
+    ],
+    "skill_manager": [
+        (r"\b(skill|capability|plugin|extension|install skill|load skill|list skills|available skills)\b", 0.55),
+    ],
+    "cross_session_search": [
+        (r"\b(search session|find previous|past conversation|history search|previous task|old session|cross-session)\b", 0.55),
+    ],
+    "node_execute": [
+        (r"\b(node|javascript|js|npm|typescript|ts|react|vue|express|deno)\b", 0.50),
+        (r"\b(frontend|web app|bundle|webpack|vite|package\.json)\b", 0.20),
+    ],
+    "platform_control": [
+        (r"\b(github|vercel|netlify|wordpress|deploy|ci/cd|release|huggingface|discord bot|telegram bot)\b", 0.55),
+        (r"\b(api endpoint|rest api|platform|cloud service|webhook)\b", 0.20),
+    ],
 }
 
 

@@ -9,14 +9,14 @@
 </pre>
 </div>
 
-# 🦅 ManusClaw v4.0 — The Ultimate Autonomous AI Ecosystem
+# 🦅 ManusClaw v4.0.0 — The Ultimate Autonomous AI Ecosystem
 
 ### *Not a wrapper. Not a demo. A full OS-level, multi-agent, self-improving execution engine with skills, memory, and multi-provider intelligence.*
 
 ---
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
-[![Python](https://img.shields.io/badge/Python-3.10%2B-blue?style=for-the-badge&logo=python)](https://www.python.org/)
+[![Python](https://img.shields.io/badge/Python-3.11%2B-blue?style=for-the-badge&logo=python)](https://www.python.org/)
 [![Version](https://img.shields.io/badge/Version-4.0.0-red?style=for-the-badge)](https://github.com/The-JDdev/ManusClaw)
 [![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20macOS%20%7C%20Windows%20%7C%20Termux%20%7C%20Docker-orange?style=for-the-badge)]()
 [![Offline](https://img.shields.io/badge/Offline%20LLM-Supported-purple?style=for-the-badge)]()
@@ -26,18 +26,15 @@
 
 **Created by [The-JDdev (SHS Shobuj)](https://github.com/The-JDdev)** — Built from Bangladesh, on a smartphone. 🇧🇩
 
-[🌐 Web Interface](https://the-jddev.github.io/ManusClaw) · [🐛 Report a Bug](https://github.com/The-JDdev/ManusClaw/issues) · [💬 Telegram](https://t.me/aamoviesadmin) · [📘 Facebook](https://fb.com/itsshsshobuj)
+[🌐 Web Interface](https://the-jddev.github.io/ManusClaw) · [📦 Setup Repo](https://github.com/The-JDdev/manusclaw-setup) · [🐛 Report a Bug](https://github.com/The-JDdev/ManusClaw/issues) · [💬 Telegram](https://t.me/aamoviesadmin) · [📘 Facebook](https://fb.com/itsshsshobuj)
 
 </div>
 
 ---
 
+## 🚀 What's New in v4.0.0 — Hermes Integration
 
----
-
-## 🚀 What's New in v4.0 — Hermes Integration
-
-> *v4.0 transforms ManusClaw from a powerful agent into a self-improving ecosystem — skills that compound, memory that persists, and infrastructure that scales.*
+> *v4.0.0 transforms ManusClaw from a powerful agent into a self-improving ecosystem — skills that compound, memory that persists, and infrastructure that scales.*
 
 ### ⚡ Multi-Provider LLM with Credential Pool
 - **6 providers**: OpenAI, Anthropic, Google Gemini, Mistral AI, AWS Bedrock, + any OpenAI-compatible endpoint (Groq, Together, OpenRouter, Ollama, LM Studio)
@@ -58,6 +55,20 @@
 - `memory` tool: read/write `MEMORY.md` (facts) and `USER.md` (preferences) — persists across all sessions
 - **Session branching**: fork any session with `parent_session_id` for parallel exploration
 - **Context compression**: summarize old messages when approaching token limits — chain sessions infinitely
+
+### 🐚 `manusclaw` Single-Command Activation System
+- Type **`manusclaw`** in any terminal → the AI environment activates with a banner
+- Persistent autonomous shell — type prompts naturally, no prefix needed
+- Graceful shutdown with SIGINT/SIGTERM handling
+- Auto-resume of pending background tasks on startup
+
+### 📋 Persistent Autonomous Task Queue — `app/task_queue.py`
+- **SQLite-backed task persistence** — tasks survive crashes and restarts
+- **Background execution** with async workers — `/bg <prompt>` runs tasks in the background
+- **Priority ordering** — high-priority tasks execute first
+- **Progress recovery and resume** from checkpoints — pick up where you left off
+- **Queue management** — `/tasks` shows queue status, priority, and progress
+- **Automatic restart handling** — interrupted tasks resume on next launch
 
 ### 🔧 New Tools
 | Tool | Description |
@@ -83,8 +94,9 @@
 - Animated spinner, Rich Markdown rendering, role-emoji prefixes
 - **4 built-in skins**: `default` (gold), `ares` (red), `mono` (white), `slate` (blue)
 - Custom YAML skins at `~/.manusclaw/skins/<name>.yaml`
-- **Slash commands**: `/model`, `/skills`, `/tools`, `/memory`, `/compress`, `/new`, `/branch`, `/resume`, `/help`, `/exit`
+- **Slash commands**: `/model`, `/skills`, `/tools`, `/memory`, `/compress`, `/new`, `/branch`, `/resume`, `/bg`, `/tasks`, `/help`, `/exit`
 - Persistent input history at `~/.manusclaw/.cli_history`
+- Activation banner and graceful shutdown on exit
 
 ### 🗂️ Named Config Profiles
 ```bash
@@ -132,8 +144,9 @@ It runs on **Linux, macOS, Windows, Docker, and Termux (Android)**. It ships wit
 10. [📡 Dual UI: Terminal & Web](#-dual-ui-terminal--web)
 11. [🏗️ Architecture Deep Dive](#️-architecture-deep-dive)
 12. [🔧 Bug Fixes & Improvements (v4.0 Full Audit)](#-bug-fixes--improvements-v40-full-audit)
-13. [💌 A Note from the Founder](#-a-note-from-the-founder)
-14. [💎 Donation Vault](#-donation-vault)
+13. [📦 Setup Repository](#-setup-repository)
+14. [💌 A Note from the Founder](#-a-note-from-the-founder)
+15. [💎 Donation Vault](#-donation-vault)
 
 ---
 
@@ -339,7 +352,7 @@ api_key   = "..."
 model     = "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo"
 ```
 
-The `extra_headers` field (added in v3.2) is critical for **OpenRouter** compliance — it passes the `HTTP-Referer` and `X-Title` headers that OpenRouter requires for rate limit tracking.
+The `extra_headers` field is critical for **OpenRouter** compliance — it passes the `HTTP-Referer` and `X-Title` headers that OpenRouter requires for rate limit tracking.
 
 ### Mode 3: Fully Offline Local LLM
 
@@ -531,6 +544,8 @@ ManusClaw implements a strict **3-tier permission system** that governs every to
 │  (EXEC)  │  Build Mode. Pauses for    │  python_execute    │
 │          │  user input in Plan Mode   │  str_replace_editor│
 │          │                            │  browser_use       │
+│          │                            │  platform_control  │
+│          │                            │  delegate          │
 ├──────────┼────────────────────────────┼────────────────────┤
 │  TIER 3  │  DENY — Blocked always     │  fork bombs        │
 │  (DOOM)  │  Catastrophic OS patterns  │  rm -rf /          │
@@ -598,7 +613,7 @@ The native terminal experience. No containers, no servers, no GUI — just raw p
 #### Prerequisites
 
 ```bash
-# Python 3.10+ required
+# Python 3.11+ required
 python3 --version
 
 # Clone the repository
@@ -622,6 +637,13 @@ pip install -e ".[desktop]"   # Flet desktop GUI
 #### Running the Agent
 
 ```bash
+# 🐚 Activate the AI shell — type your prompts naturally
+manusclaw
+
+# After activation, type prompts naturally without any prefix:
+# > Create a normal AI assistant app for me
+# > Build a FastAPI server with JWT auth
+
 # Single task, one shot
 python main.py "Write a Python web scraper for Hacker News and save results to workspace/hn.json"
 
@@ -639,12 +661,14 @@ python run_multi_agent.py --mode plan "Refactor the entire project"
 
 ```bash
 # These commands become globally available after install
-manusclaw "Your task here"
-Manusclaw "Your task here"                    # capital M also works
+manusclaw                                        # 🐚 Activate persistent AI shell
+manusclaw "Your task here"                       # One-shot task
+Manusclaw "Your task here"                       # capital M also works
 
-manusclaw-server --host 0.0.0.0 --port 8765  # start the WebSocket server
-manusclaw-multi  "Build a web app"            # multi-agent pipeline
-manusclaw-desktop                             # launch the desktop GUI
+manusclaw-server --host 0.0.0.0 --port 8765     # start the WebSocket server
+manusclaw-multi  "Build a web app"               # multi-agent pipeline
+manusclaw-cron   --list                          # manage cron jobs
+manusclaw-desktop                                # launch the desktop GUI
 ```
 
 #### Windows
@@ -830,14 +854,19 @@ The built executables are **self-contained** — no Python installation required
 After installing with `pip install -e .`, ManusClaw registers **five global entry points** in your system PATH. From any directory, in any terminal, on any supported platform, you can summon the beast:
 
 ```bash
-# The main incantation — type this anywhere
-Manusclaw "Dominate this task"
+# 🐚 The main activation — starts a persistent AI shell
+manusclaw
 
-# Lowercase works too
+# One-shot task mode
 manusclaw "Dominate this task"
+Manusclaw "Dominate this task"                    # capital M also works
 
 # Start the server
 manusclaw-server
+
+# Manage cron jobs
+manusclaw-cron --list
+manusclaw-cron --add "0 9 * * *" "Daily standup summary"
 
 # Launch the multi-agent pipeline
 manusclaw-multi "Build a production-ready web application"
@@ -853,6 +882,33 @@ On **Windows**, after install, open any PowerShell or Command Prompt window and 
 ---
 
 ## ⚡ Quick Start
+
+### 🐚 The `manusclaw` Command — Your AI Operating Shell
+
+The fastest way to use ManusClaw is the **`manusclaw`** command. It activates a persistent AI environment where you type prompts naturally — no prefixes, no flags, just conversation.
+
+```bash
+# Step 1: Install
+git clone https://github.com/The-JDdev/ManusClaw.git
+cd ManusClaw
+pip install -e .
+
+# Step 2: Activate
+manusclaw
+
+# Step 3: Type naturally
+🦅 ManusClaw v4.0.0 — AI Environment Active
+> Create a normal AI assistant app for me
+> Build a FastAPI server with authentication
+> /bg Run a deep research on quantum computing    # ← background task
+> /tasks                                            # ← check queue status
+```
+
+After activation:
+- **Type prompts naturally** without any prefix — the AI processes them immediately
+- **`/bg <prompt>`** — send a task to the background queue
+- **`/tasks`** — view all queued/running/completed tasks
+- **`/exit`** — gracefully shut down (background tasks persist and resume on next launch)
 
 ### 30-Second Setup (Mock LLM — No API Key Needed)
 
@@ -880,9 +936,25 @@ export OPENAI_API_KEY=sk-...
 provider = "openai"
 model    = "gpt-4o"
 
-# Run
+# Activate the AI shell
+manusclaw
+
+# Or run a single task
 python main.py "Research the top 5 Python async frameworks, compare them, and write a report to workspace/frameworks.md"
 ```
+
+### 🚀 One-Command Setup (Recommended)
+
+For the fastest possible setup, use the dedicated setup repository:
+
+```bash
+# Clone the setup repo for automated installation
+git clone https://github.com/The-JDdev/manusclaw-setup.git
+cd manusclaw-setup
+bash setup.sh
+```
+
+👉 **[github.com/The-JDdev/manusclaw-setup](https://github.com/The-JDdev/manusclaw-setup)**
 
 ---
 
@@ -945,9 +1017,11 @@ max_steps     = 30            # max steps per agent run (prevents infinite loops
 |---|---|
 | `OPENAI_API_KEY` | OpenAI API key (auto-loaded into `llm.api_key`) |
 | `ANTHROPIC_API_KEY` | Anthropic API key (auto-loaded into `llm.api_key`) |
+| `GOOGLE_API_KEY` | Google Gemini API key |
 | `LLM_BASE_URL` | Override `llm.base_url` at runtime |
 | `MANUSCLAW_API_KEY` | Enables API Key authentication on the server |
 | `MANUSCLAW_ALLOWED_ORIGINS` | CORS allowed origins (comma-separated) |
+| `MANUSCLAW_PROFILE` | Named config profile to load |
 
 ---
 
@@ -1078,7 +1152,6 @@ This is ManusClaw's most powerful tool for **autonomous external platform manage
 
 ```python
 # Let the agent manage a GitHub repository autonomously
-# Agent prompt: "Create a new GitHub repo called 'my-project', initialize it with a README, and push our workspace code"
 result = await platform_control.execute(
     platform="github",
     credentials={"token": "ghp_..."},
@@ -1106,15 +1179,6 @@ result = await platform_control.execute(
     method="POST",
     path="/posts",
     body={"title": "ManusClaw: AI That Actually Works", "content": "...", "status": "publish"},
-)
-
-# Send a Discord notification
-result = await platform_control.execute(
-    platform="discord",
-    credentials={"bot_token": "Bot MTxx..."},
-    method="POST",
-    path="/channels/1234567890/messages",
-    body={"content": "✅ Deployment complete. Build #42 is live."},
 )
 
 # Any REST API
@@ -1147,19 +1211,6 @@ The CLI is ManusClaw's native habitat. Every agent output is streamed to stdout 
 
 export MANUSCLAW_API_KEY=""  # leave empty for local use
 python main.py
-```
-
-Output format:
-```
-[manus] ▶ Starting run (task_id=3f2a1b4c, session_id=abc123, mode=build, max_steps=30)
-[manus] ── Step 1/30 ──
-[manus] Tool call (1/4): web_search({"query": "Python async frameworks 2025"})
-[manus] Tool result: Search results for 'Python async frameworks 2025':
-        [1] FastAPI vs Litestar vs Sanic...
-[manus] ── Step 2/30 ──
-[manus] Tool call (1/4): str_replace_editor({"command": "create", "path": "workspace/report.md"})
-[manus] Tool result: File created: workspace/report.md
-[manus] ■ Finished. state=finished steps=4
 ```
 
 ### FastAPI WebSocket Server — Real-Time Streaming
@@ -1240,27 +1291,6 @@ curl -H "X-API-Key: your-secret-key-here" \
      -H "Content-Type: application/json" \
      -d '{"prompt": "List files in workspace/", "mode": "build"}'
 ```
-
-WebSocket connections authenticate via query parameter:
-```
-ws://localhost:8765/ws/session-123?api_key=your-secret-key-here
-```
-
-#### CORS Configuration
-
-By default (no `MANUSCLAW_ALLOWED_ORIGINS` set), the server allows all origins with `allow_credentials=False` — compatible with any frontend without credential cookies.
-
-For production deployments with specific frontends:
-```bash
-export MANUSCLAW_ALLOWED_ORIGINS="https://my-frontend.vercel.app,https://manusclaw-web.pages.dev"
-manusclaw-server
-```
-
-When explicit origins are configured, `allow_credentials=True` is enabled — required for cookie-based authentication.
-
-#### Connecting manusclaw-web
-
-The [manusclaw-web](https://the-jddev.github.io/ManusClaw) frontend connects to your local server via WebSocket. Start the server, open the web UI, enter your server URL, and get a full visual terminal experience with live streaming output.
 
 ### MCP Server — `app/mcp/server.py`
 
@@ -1363,123 +1393,89 @@ This forces the agent to maintain an explicit model of its progress and prevents
 
 ## 🔧 Bug Fixes & Improvements (v4.0 Full Audit)
 
-A comprehensive two-part codebase audit identified and resolved **23 bugs, broken logic blocks, and missing entry points** across 19 source files. Every critical, high, and medium severity issue has been fixed. No features removed.
+A comprehensive two-part codebase audit identified and resolved **35+ bugs, broken logic blocks, and missing entry points** across 19+ source files. Every critical, high, and medium severity issue has been fixed. No features removed.
 
 ---
 
 ### 🔴 Critical — Crash / Completely Broken
 
-#### `app/cron.py` — Missing `main()` Entry Point
-`pyproject.toml` maps `manusclaw-cron = "app.cron:main"` but the function did not exist. Running `manusclaw-cron` crashed with `AttributeError`. Added a full CLI: `--run`, `--list`, `--add`, `--remove`, `--trigger`.
-
-#### `app/cron.py` — Fire-and-Forget `asyncio.create_task` GC Risk
-`run_forever()` discarded task references. Python's GC could destroy tasks mid-execution, silently killing jobs. Tasks are now stored in `self._tasks: set` with `add_done_callback(self._tasks.discard)`.
-
-#### `pyproject.toml` — Missing `manusclaw-multi` Entry Point
-`app/multi_agent.py` exposes `run_cli()` but was never registered as a console script. Added: `manusclaw-multi = "app.multi_agent:run_cli"`.
-
-#### `app/llm/llm.py` — AnthropicClient Sends OpenAI-Format Messages (HTTP 400)
-`AnthropicClient.chat()` passed OpenAI messages directly to the Anthropic SDK. Anthropic requires: `role:"tool"` → `role:"user"` with `type:"tool_result"` blocks; assistant `tool_calls` → `type:"tool_use"` blocks; consecutive same-role messages merged. Every multi-turn tool call returned HTTP 400. Added `_to_anthropic_messages()` converter.
-
-#### `app/llm/llm.py` — AnthropicClient Temperature on Extended-Thinking Models
-Claude-3-7-sonnet and claude-sonnet-4 require `temperature=1` and reject arbitrary values. Temperature is now conditionally excluded for extended-thinking model families.
-
-#### `app/llm/llm.py` — GoogleClient Ignores `tools` Parameter
-`GoogleClient.chat()` silently discarded `tools`, making function-calling impossible. Added full conversion of OpenAI tool schemas to Gemini `FunctionDeclaration` protos with proper multi-turn chat history.
-
-#### `app/llm/llm.py` — Offline Routers Are Dead Code
-`OllamaRouter`, `GGUFRouter`, `HuggingFaceRouter` existed in `offline_router.py` but were never wired into `LLM._build_backend()`. Setting `provider="ollama"`, `"gguf"`, or `"huggingface"` fell through to MockLLM. All three providers are now correctly routed.
-
-#### `app/llm/llm.py` — Credential Pool Rotation Only Works for UniversalClient
-`_call_with_retry()` only passed the rotated `api_key` to `UniversalClient`, ignoring rotation for OpenAI, Anthropic, Google SDK clients. Rate-limited calls were retried forever with the same exhausted key. Rotated key is now passed to all backends.
-
-#### `app/llm/offline_router.py` — `httpx.post(url, data)` TypeError
-`OllamaRouter._post()` passed raw bytes as the second positional argument. In httpx ≥ 0.20 bytes must be `content=data`. Fixed: `httpx.post(url, content=data, ...)`.
-
-#### `app/server/main.py` — Version Hardcoded as 3.2.0
-`FastAPI(version=)`, `/healthz`, and `/` endpoint all returned `3.2.0` / `v3.0`. Updated all to `4.0.0`.
-
-#### `app/server/main.py` — `warnings.warn` at Module Import Time
-CORS and API key checks called `warnings.warn()` at the module level, printing on every import (tests, CLI, etc.). Replaced with a `lifespan` context manager that logs once at server startup.
-
-#### `app/server/main.py` — `/tools` Endpoint Leaks Bash Subprocess
-The `/tools` endpoint instantiated `ToolCollection(Bash(), ...)` but never called `cleanup_all()`. `Bash()` spawns a persistent shell that leaked on every call. Wrapped in `try/finally: await tools.cleanup_all()`.
-
-#### `app/server/main.py` — `step_num` Closure Bug (Always Sends Step 0)
-`step_num = agent._step_count` captured the count at decoration time (always 0), not at call time. WebSocket stream reported every step as step 0. Fixed to capture `agent._step_count + 1` inside the function body at invocation.
-
-#### `app/config.py` — API Key Detection Picks Wrong Key for Provider
-When both `OPENAI_API_KEY` and `ANTHROPIC_API_KEY` were set and `provider="anthropic"`, `OPENAI_API_KEY` was picked first. Fixed: provider-specific key is checked first via `_provider_key_map[cfg.llm.provider]`.
-
----
+| # | File | What Was Broken | What Was Fixed |
+|---|------|----------------|----------------|
+| 1 | `app/cron.py` | `main()` missing → CLI crashed with `AttributeError` | Added full `main()` with argparse: `--run`, `--list`, `--add`, `--remove`, `--trigger` |
+| 2 | `app/cron.py` | Fire-and-forget `asyncio.create_task` → GC killed jobs | Store task refs in `self._tasks` with `add_done_callback(self._tasks.discard)` |
+| 3 | `pyproject.toml` | `manusclaw-multi` entry point missing | Added `manusclaw-multi = "app.multi_agent:run_cli"` |
+| 4 | `app/llm/llm.py` | `AnthropicClient` sends OpenAI-format messages → HTTP 400 | Added `_to_anthropic_messages()` converter with role remapping |
+| 5 | `app/llm/llm.py` | `AnthropicClient` temperature on extended-thinking models | Skip temperature for Claude-3-7-sonnet / claude-sonnet-4 |
+| 6 | `app/llm/llm.py` | `GoogleClient._genai` was never set → `NoneType` errors | Stored module reference properly on initialization |
+| 7 | `app/llm/llm.py` | `GoogleClient` ignores `tools` parameter → no function calling | Full `FunctionDeclaration` proto conversion from OpenAI schemas |
+| 8 | `app/llm/llm.py` | Google tool messages silently dropped from history | Tool results now included in multi-turn chat history |
+| 9 | `app/llm/llm.py` | Offline routers dead code — never wired into `_build_backend()` | `OllamaRouter`, `GGUFRouter`, `HuggingFaceRouter` now correctly routed |
+| 10 | `app/llm/llm.py` | `OllamaRouter` didn't support tools → no tool calling with Ollama | Full tool calling support added for Ollama provider |
+| 11 | `app/llm/llm.py` | Credential pool rotation only works for `UniversalClient` | Rotated key now passed to all backends (OpenAI, Anthropic, Google) |
+| 12 | `app/llm/offline_router.py` | `httpx.post(url, data)` TypeError in httpx ≥ 0.20 | Changed to `httpx.post(url, content=data, ...)` |
+| 13 | `app/server/main.py` | Version hardcoded as `3.2.0` | Updated all strings to `4.0.0` |
+| 14 | `app/server/main.py` | `warnings.warn` at module import time | Moved to `lifespan` context manager, logs once at startup |
+| 15 | `app/server/main.py` | `/tools` endpoint leaks Bash subprocess | `try/finally: await tools.cleanup_all()` |
+| 16 | `app/server/main.py` | `step_num` closure bug — always sends step 0 | Capture `agent._step_count + 1` at call time |
+| 17 | `app/config.py` | API key detection picks wrong key for provider | Provider-specific key checked first via `_provider_key_map` |
 
 ### 🟠 High Priority — Wrong Behavior
 
-#### `app/agent/toolcall.py` — "done" Keyword Terminates Agent Prematurely
-`step()` scanned assistant content for `"done"` as a substring, matching "not done yet", "I've done the analysis", etc. Agents stopped mid-task. Replaced with anchored regex: `\btask\s+complete\b`, `\ball\s+done\b`, `^done[.!]?$`.
-
-#### `app/schema.py` — `Memory._trim()` Creates Orphaned TOOL Messages (HTTP 400)
-When trimming messages, the boundary could land inside an `ASSISTANT(tool_calls)` → `TOOL(result)` pair, leaving TOOL messages at the start with no parent. APIs return HTTP 400 for this. The trim now drops leading orphaned TOOL messages and leading ASSISTANT messages whose tool_calls were trimmed away.
-
-#### `app/db/session.py` — FTS Search Labels `tool_name` Column as `role`
-`fts_search()` returned `"role": row[2]` but `row[2]` is `tool_name` in the `tool_calls` table. Renamed to `"tool_name"`.
-
-#### `app/agent/roles/qa.py` — APPROVED False Positive in Code Blocks
-`decide()` scanned the entire QA report for `"APPROVED"`, matching it inside code (e.g. `if status == "APPROVED"`). Fixed: search for `Verdict: APPROVED` on a dedicated verdict line using regex; fall back to last 400 characters only.
-
-#### `app/tool/web_search.py` — Bing Regex Returns Zero Results
-The Bing scraper matched `<h2><a href=...>` from Bing's 2022 HTML structure. Modern Bing changed its layout — zero results every time. Updated to a two-pattern fallback with URL validation.
-
-#### `app/flow/planning.py` — `_select_agent()` Leaks a Bash Process Per Step
-`_select_agent()` created a new `Manus()` per step, each spawning a new Bash subprocess (unreferenced). A 10-step plan leaked 10 shell processes. Added `self._agent_cache` — agents created once, reused across steps, cleaned up at flow end.
-
-#### `app/agent/base.py` — Duplicate Detection: Exact Match Only
-The loop-detection check required byte-for-byte identical messages, missing near-duplicates with slightly different tool result text. Added `_similarity()` word-token overlap: two messages are near-duplicate if they share >80% of tokens.
-
----
+| # | File | What Was Broken | What Was Fixed |
+|---|------|----------------|----------------|
+| 18 | `app/agent/toolcall.py` | `"done"` keyword terminates agent mid-task | Anchored regex: `\btask\s+complete\b`, `\ball\s+done\b`, `^done[.!]?$` |
+| 19 | `app/schema.py` | `Memory._trim()` creates orphaned TOOL messages → HTTP 400 | Drop orphaned TOOL messages and ASSISTANT messages at trim boundary |
+| 20 | `app/db/session.py` | FTS search labels `tool_name` column as `role` | Renamed to `tool_name` |
+| 21 | `app/agent/roles/qa.py` | `APPROVED` false positive in code blocks | Verdict-line regex: `Verdict: APPROVED`, last 400 chars only |
+| 22 | `app/tool/web_search.py` | Bing regex returns zero results | Two-pattern resilient scraper with URL validation |
+| 23 | `app/flow/planning.py` | `_select_agent()` leaks Bash process per step | `_agent_cache` — agents reused, cleaned up at flow end |
+| 24 | `app/agent/base.py` | Duplicate detection: exact match only | Added 80% word-token overlap similarity check |
+| 25 | `app/tool/platform_control.py` | No OpenAI parameters schema → tool calling broken | Proper JSON Schema with all platform credential definitions |
+| 26 | `app/tool/ask_human.py` | Deadlocked in non-interactive environments (Docker, CI) | `sys.stdin.isatty()` check + configurable timeout fallback |
+| 27 | `app/tool/node_execute.py` | Inconsistent truncation (unlike `PythonExecute`) | Now returns full output matching `PythonExecute` behavior |
+| 28 | `app/agent/toolcall.py` | `step()` imported `re` every call | Moved to module-level constants for performance |
 
 ### 🟡 Medium — Correctness / Security / UX
 
-#### `app/permissions/gate.py` — `platform_control` and `delegate` Not in `_ASK_TOOLS`
-Both tools make high-impact external calls (GitHub/Vercel/Discord API, spawning subagents) but executed silently in Plan Mode without user confirmation. Added both to `_ASK_TOOLS`.
+| # | File | What Was Broken | What Was Fixed |
+|---|------|----------------|----------------|
+| 29 | `app/permissions/gate.py` | `platform_control` and `delegate` not in `_ASK_TOOLS` | Added both to `_ASK_TOOLS` for Plan Mode approval |
+| 30 | `app/memory/` | Memory tool race condition under concurrent access | Added `threading.Lock` for thread-safe memory operations |
+| 31 | `app/mcp/server.py` | Security: `tool(**kwargs)` allowed constructor injection | Changed to `tool.execute(**kwargs)` — prevents arbitrary class instantiation |
+| 32 | `app/agent/mcp_agent.py` | `MCPAgent` didn't forward `mode`/`session_id` | Both parameters now properly forwarded |
+| 33 | `app/agent/browser_agent.py` | `BrowserAgent` didn't forward `mode`/`session_id` | Both parameters now properly forwarded |
+| 34 | `app/tool/selector.py` | Missing heuristic signals for 7 tools | Added scoring signals for all tools |
+| 35 | `app/llm/offline_router.py` | `GGUFRouter` used deprecated `asyncio.get_event_loop().time()` | Replaced with `time.time()` |
+| 36 | Multiple | Version inconsistencies (`3.1.0`, `3.2.0`, `4.0.0`) | All unified to `4.0.0` |
+
+### ➕ New Additions
+
+| # | File | Description |
+|---|------|-------------|
+| 37 | `.env.example` | Comprehensive environment variable reference document |
+| 38 | `app/task_queue.py` | Persistent autonomous task queue with SQLite backing, async workers, priority ordering, progress recovery, and auto-resume |
+| 39 | `app/cli.py` (enhanced) | `manusclaw` single-command activation with banner, graceful shutdown, task auto-resume, `/bg` and `/tasks` commands |
 
 ---
 
-### New File
+## 📦 Setup Repository
 
-#### `.env.example` — Environment Variable Reference
-Documents every supported environment variable: all LLM provider keys, server security settings, messaging tokens, cron path, profile support, secret redaction, and FAL key for image generation.
+For the fastest installation experience, use the dedicated setup repository:
 
----
+👉 **[github.com/The-JDdev/manusclaw-setup](https://github.com/The-JDdev/manusclaw-setup)**
 
-### Fix Summary Table
+```bash
+git clone https://github.com/The-JDdev/manusclaw-setup.git
+cd manusclaw-setup
+bash setup.sh
+```
 
-| # | Severity | File | What Was Broken | What Was Fixed |
-|---|----------|------|----------------|----------------|
-| 1 | 🔴 | `app/cron.py` | `main()` missing → CLI crashed | Added full `main()` with argparse |
-| 2 | 🔴 | `app/cron.py` | Fire-and-forget tasks → GC killed jobs | Store task refs in `self._tasks` |
-| 3 | 🔴 | `pyproject.toml` | `manusclaw-multi` entry point missing | Added console script entry |
-| 4 | 🔴 | `app/llm/llm.py` | AnthropicClient: OpenAI msgs → HTTP 400 | Added `_to_anthropic_messages()` |
-| 5 | 🔴 | `app/llm/llm.py` | AnthropicClient: temp on thinking models | Skip temperature for thinking models |
-| 6 | 🔴 | `app/llm/llm.py` | GoogleClient: tools ignored | Gemini FunctionDeclaration conversion |
-| 7 | 🔴 | `app/llm/llm.py` | Offline routers dead code | Wire gguf/ollama/hf into _build_backend |
-| 8 | 🔴 | `app/llm/llm.py` | Credential pool skips SDK clients | Pass rotated key to all backends |
-| 9 | 🔴 | `app/llm/offline_router.py` | `httpx.post(url, data)` TypeError | Changed to `content=data` |
-| 10 | 🔴 | `app/server/main.py` | Version 3.2.0 hardcoded | Updated all strings to 4.0.0 |
-| 11 | 🔴 | `app/server/main.py` | `warnings.warn` at import time | Moved to lifespan logger |
-| 12 | 🔴 | `app/server/main.py` | `/tools` leaks Bash subprocess | `try/finally: cleanup_all()` |
-| 13 | 🔴 | `app/server/main.py` | `step_num` closure always 0 | Capture at call time |
-| 14 | 🔴 | `app/config.py` | Wrong API key picked for provider | Provider-specific key checked first |
-| 15 | 🟠 | `app/agent/toolcall.py` | "done" terminates agent mid-task | Anchored regex patterns only |
-| 16 | 🟠 | `app/schema.py` | Orphaned TOOL msgs → HTTP 400 | Drop orphans at trim boundary |
-| 17 | 🟠 | `app/db/session.py` | `tool_name` labeled `role` | Renamed to `tool_name` |
-| 18 | 🟠 | `app/agent/roles/qa.py` | APPROVED false positive | Verdict-line regex only |
-| 19 | 🟠 | `app/tool/web_search.py` | Bing returns 0 results | Two-pattern resilient scraper |
-| 20 | 🟠 | `app/flow/planning.py` | New agent per step → process leak | `_agent_cache` + flow cleanup |
-| 21 | 🟠 | `app/agent/base.py` | Duplicate detection: exact only | Added 80% similarity check |
-| 22 | 🟡 | `app/permissions/gate.py` | `platform_control`/`delegate` bypass ASK | Added both to `_ASK_TOOLS` |
-| 23 | ➕ | `.env.example` | No config reference file | Added comprehensive .env.example |
-
+The setup repository provides:
+- 🚀 **One-command installation** — automated dependency resolution
+- 🔧 **Environment configuration** — guided setup for API keys and providers
+- 📱 **Termux support** — Android-optimized installation script
+- 🐳 **Docker support** — containerized deployment scripts
+- 🔄 **Update automation** — keep ManusClaw up to date easily
 
 ---
 
@@ -1528,6 +1524,7 @@ Z430378899900
 | 📘 Facebook | [itsshsshobuj](https://fb.com/itsshsshobuj) |
 | 🐙 GitHub | [@The-JDdev](https://github.com/The-JDdev) |
 | 🌐 Web | [the-jddev.github.io/ManusClaw](https://the-jddev.github.io/ManusClaw) |
+| 📦 Setup | [manusclaw-setup](https://github.com/The-JDdev/manusclaw-setup) |
 
 ---
 

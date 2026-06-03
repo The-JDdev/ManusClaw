@@ -92,7 +92,7 @@ def build_mcp_server() -> FastAPI:
         tool = _tools.get(req.name)
         if tool is None:
             raise HTTPException(status_code=404, detail=f"Tool '{req.name}' not found.")
-        result = await tool(**req.arguments)
+        result = await tool.execute(**req.arguments)
         return {"content": [{"type": "text", "text": str(result)}]}
 
     @app.get("/healthz")
