@@ -120,7 +120,14 @@ class MultiAgentOrchestrator:
         t_pipeline = time.monotonic()
 
         async def _run_stages() -> None:
-            for role_name in order:
+            events = {r: asyncio.Event() for r in self.pipeline}
+
+            async def _run_role(role_name: str) -> None:
+                deps = self.deps.get(role_name, [])
+                for dep in deps:
+                    if dep in events:
+                        await events[dep].wait()
+
                 logger.info(f"[Orchestrator:{pipeline_id}] ── Role: {role_name} ──")
                 await self._fire_hook(self._on_stage_start, role_name)
 
@@ -161,6 +168,11 @@ class MultiAgentOrchestrator:
                         duration_s=round(elapsed, 2),
                     ))
                     await self._fire_hook(self._on_stage_error, role_name, err_msg)
+                finally:
+                    events[role_name].set()
+
+            tasks = [asyncio.create_task(_run_role(r)) for r in self.pipeline]
+            await asyncio.gather(*tasks)
 
         try:
             if hasattr(asyncio, "timeout"):
