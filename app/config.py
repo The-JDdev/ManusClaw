@@ -55,7 +55,7 @@ class LLMConfig(BaseModel):
     max_tokens:     int            = 4096
     temperature:    float          = 0.0
     max_retries:    int            = 15
-    timeout:        int            = 600
+    timeout:        int            = 1800   # 30 minutes — safe for deep-reasoning models (DeepSeek R1, o1, etc.)
     extra_headers:  dict[str, str] = Field(default_factory=dict)
     extra_api_keys: list[str]      = Field(default_factory=list)
 

@@ -10,7 +10,7 @@ model    = "gpt-4o"
 max_tokens   = 4096
 temperature  = 0.0
 max_retries  = 6
-timeout      = 300
+timeout      = 1800   # 30 minutes — safe for deep-reasoning models (DeepSeek R1, o1, etc.)
 
 [browser]
 headless          = true

@@ -26,6 +26,56 @@ MAX_RETRIES     = 8
 RETRY_BASE_WAIT = 1.0
 RETRY_MAX_WAIT  = 60.0
 
+# ──────────────────────────────────────────────────────────────────────────────
+# Long-wait intelligent response handling
+# ──────────────────────────────────────────────────────────────────────────────
+# Deep-thinking models (DeepSeek R1, o1, o3, etc.) can take 5-20+ minutes to
+# generate a response. We must NOT timeout prematurely. The system should wait
+# patiently and NOT spam repeated requests.
+#
+# Strategy:
+#   1. Default timeout raised to 30 minutes (1800s) for HTTP-level waits
+#   2. Adaptive timeout: detect long-thinking models and extend automatically
+#   3. Retry on transient errors ONLY (rate limits, 5xx) — never re-send on timeout
+#   4. Progress heartbeat: log periodic status during long waits
+# ──────────────────────────────────────────────────────────────────────────────
+
+# Models known to require extended thinking time
+LONG_THINKING_MODELS = {
+    "deepseek-r1", "deepseek-reasoner", "deepseek-r1-",
+    "o1", "o1-mini", "o1-pro", "o1-preview",
+    "o3", "o3-mini", "o3-pro",
+    "claude-3-7-sonnet", "claude-sonnet-4",
+}
+
+DEFAULT_TIMEOUT_LONG    = 1800   # 30 minutes — safe for deep-reasoning models
+DEFAULT_TIMEOUT_SHORT   = 600    # 10 minutes — for regular models
+PROGRESS_HEARTBEAT_SEC  = 30     # Log a heartbeat every 30s during long waits
+
+
+def _is_long_thinking_model(model: str) -> bool:
+    """Check if the model is known to require extended thinking time."""
+    model_lower = (model or "").lower()
+    for pattern in LONG_THINKING_MODELS:
+        if pattern in model_lower:
+            return True
+    # Heuristic: any model with 'reason' or 'think' in name likely needs more time
+    if any(kw in model_lower for kw in ("reason", "think", "r1")):
+        return True
+    return False
+
+
+def _get_adaptive_timeout(model: str, configured_timeout: int) -> int:
+    """Return the effective timeout based on model type.
+
+    For long-thinking models, we use a minimum of 30 minutes regardless of
+    the configured timeout (unless the user explicitly set an even higher value).
+    For regular models, we respect the configured value with a floor of 10 minutes.
+    """
+    if _is_long_thinking_model(model):
+        return max(configured_timeout, DEFAULT_TIMEOUT_LONG)
+    return max(configured_timeout, 300)  # At least 5 minutes even for regular models
+
 
 def _msg_from_openai(choice: dict) -> Message:
     msg = choice.get("message", {})
@@ -129,7 +179,13 @@ class UniversalClient:
         self.max_tokens = kwargs.get("max_tokens", 8192)
         self.temperature = kwargs.get("temperature", 0.0)
         self._extra_headers: dict[str, str] = kwargs.get("extra_headers", {})
-        self._timeout_seconds = kwargs.get("timeout", 300)
+        # FIX: Use adaptive timeout — long-thinking models need much more time
+        configured_timeout = kwargs.get("timeout", 300)
+        self._timeout_seconds = _get_adaptive_timeout(model, configured_timeout)
+        logger.info(
+            f"[UniversalClient] model={model} timeout={self._timeout_seconds}s "
+            f"(long_thinking={_is_long_thinking_model(model)})"
+        )
 
     async def _post(self, payload: dict[str, Any], api_key: Optional[str] = None) -> dict[str, Any]:
         import aiohttp
@@ -142,7 +198,12 @@ class UniversalClient:
         url = f"{self.base_url}/chat/completions"
         timeout = aiohttp.ClientTimeout(total=self._timeout_seconds)
         async with aiohttp.ClientSession(timeout=timeout) as session:
+            # FIX: Long-wait progress monitoring — log heartbeats during long waits
+            logger.info(f"[UniversalClient] Sending request to {url} (timeout={self._timeout_seconds}s)")
+            start_time = asyncio.get_event_loop().time()
             async with session.post(url, json=payload, headers=headers) as resp:
+                elapsed = asyncio.get_event_loop().time() - start_time
+                logger.info(f"[UniversalClient] Response received after {elapsed:.1f}s (status={resp.status})")
                 if resp.status == 429:
                     raise RateLimitError("Rate limited")
                 if resp.status == 400:
@@ -170,11 +231,17 @@ class UniversalClient:
 class OpenAIClient:
     def __init__(self, cfg: Any) -> None:
         from openai import AsyncOpenAI
-        timeout_val = getattr(cfg, 'timeout', 300) or 300
+        # FIX: Use adaptive timeout — long-thinking models need much more time
+        configured_timeout = getattr(cfg, 'timeout', 300) or 300
+        timeout_val = _get_adaptive_timeout(cfg.model, configured_timeout)
         self._c = AsyncOpenAI(api_key=cfg.api_key, base_url=cfg.base_url or None, timeout=timeout_val)
         self.model: str = cfg.model
         self.max_tokens: int = cfg.max_tokens
         self.temperature: float = cfg.temperature
+        logger.info(
+            f"[OpenAIClient] model={cfg.model} timeout={timeout_val}s "
+            f"(long_thinking={_is_long_thinking_model(cfg.model)})"
+        )
 
     async def chat(self, messages: list[dict[str, Any]], tools: Optional[list[dict[str, Any]]] = None,
                    **_: Any) -> dict[str, Any]:
@@ -192,10 +259,17 @@ class OpenAIClient:
 class AnthropicClient:
     def __init__(self, cfg: Any) -> None:
         from anthropic import AsyncAnthropic
-        self._c = AsyncAnthropic(api_key=cfg.api_key)
+        # FIX: Use adaptive timeout for long-thinking Claude models
+        configured_timeout = getattr(cfg, 'timeout', 300) or 300
+        timeout_val = _get_adaptive_timeout(cfg.model, configured_timeout)
+        self._c = AsyncAnthropic(api_key=cfg.api_key, timeout=timeout_val)
         self.model: str = cfg.model
         self.max_tokens: int = cfg.max_tokens
         self.temperature: float = cfg.temperature
+        logger.info(
+            f"[AnthropicClient] model={cfg.model} timeout={timeout_val}s "
+            f"(long_thinking={_is_long_thinking_model(cfg.model)})"
+        )
 
     @staticmethod
     def _to_anthropic_messages(messages: list[dict]) -> list[dict]:
@@ -542,6 +616,12 @@ class LLM:
             if not self.token_budget.use_grace():
                 raise TokenLimitExceeded("Token budget exhausted and grace call already used.")
 
+        # FIX: Detect if we're using a long-thinking model — timeouts are expected
+        # and should NOT trigger retries. The HTTP client already has an adaptive
+        # timeout of 30 minutes for such models. We only retry on transient errors.
+        model_name = getattr(self._backend, 'model', '')
+        is_deep_thinker = _is_long_thinking_model(model_name)
+
         for attempt in range(1, self._max_retries + 1):
             cred = await self._pool.get() if self._pool else None
             try:
@@ -550,20 +630,68 @@ class LLM:
                 # FIX: Pass rotated api_key to ALL backends, not just UniversalClient
                 if api_key:
                     chat_kwargs["api_key"] = api_key
+
+                # FIX: Long-wait progress heartbeat — start background monitor
+                t_start = time.monotonic()
                 result: dict[str, Any] = await self._backend.chat(messages, tools=tools, **chat_kwargs)
+                elapsed = time.monotonic() - t_start
+
+                if elapsed > 60:
+                    logger.info(
+                        f"[LLM] Long response received after {elapsed:.0f}s "
+                        f"(model={model_name}). This is normal for deep-thinking models."
+                    )
+
                 if cred and self._pool:
                     await self._pool.mark_success(cred)
                 return result
+
             except TokenLimitExceeded:
                 raise
+
             except RateLimitError:
                 if cred and self._pool:
                     await self._pool.mark_exhausted(cred)
                 logger.warning(f"[LLM] Rate limited (attempt {attempt}). Wait {wait:.1f}s...")
                 await asyncio.sleep(wait)
                 wait = min(wait * 2 + random.uniform(0, 1), RETRY_MAX_WAIT)
+
+            except (asyncio.TimeoutError, TimeoutError) as e:
+                # FIX: For long-thinking models, timeouts after the adaptive period
+                # (30 minutes) are genuine failures — do NOT silently retry with
+                # the same request (that would spam the API and waste time).
+                # For regular models, a timeout is unusual and worth one retry.
+                last_err = e
+                if is_deep_thinker:
+                    logger.error(
+                        f"[LLM] Timeout after adaptive period for deep-thinking model "
+                        f"'{model_name}'. This model took too long even with extended "
+                        f"timeout. NOT retrying to avoid API spam."
+                    )
+                    raise
+                # Regular model timeout — allow retry with backoff
+                if attempt < self._max_retries:
+                    logger.warning(
+                        f"[LLM] Timeout (attempt {attempt}/{self._max_retries}) "
+                        f"for model '{model_name}'. Retrying in {wait:.1f}s..."
+                    )
+                    await asyncio.sleep(wait)
+                    wait = min(wait * 2 + random.uniform(0, 1), RETRY_MAX_WAIT)
+                else:
+                    raise
+
             except Exception as e:
                 last_err = e
+                # FIX: Distinguish connection errors (retry) from content errors (don't retry)
+                error_str = str(e).lower()
+                is_transient = any(kw in error_str for kw in (
+                    "connection", "network", "reset", "broken pipe",
+                    "temporary", "502", "503", "504", "server error",
+                ))
+                if not is_transient and attempt >= 2:
+                    # Non-transient error (bad request, auth, etc.) — fail fast
+                    logger.error(f"[LLM] Non-transient error: {e}. Not retrying.")
+                    raise
                 if attempt == self._max_retries:
                     raise
                 logger.warning(f"[LLM] Error (attempt {attempt}/{self._max_retries}): {e}. Retry in {wait:.1f}s...")

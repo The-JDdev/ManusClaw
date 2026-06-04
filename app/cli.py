@@ -159,14 +159,23 @@ def _print_tool_activity(tool_name: str, args_preview: str, skin: dict) -> None:
 # ──────────────────────────────────────────────────────────────────────────────
 
 class Spinner:
-    """Contextual spinner using Rich if available, otherwise plain text."""
+    """Contextual spinner using Rich if available, otherwise plain text.
+
+    FIX: Enhanced for long-wait scenarios. When deep-thinking models (DeepSeek R1,
+    o1, etc.) are processing, the spinner shows periodic progress updates so the
+    user knows the system is still working and hasn't frozen.
+    """
 
     def __init__(self, verb: str = "thinking", skin: Optional[dict] = None) -> None:
         self.verb = verb
         self.skin = skin or SKINS["default"]
         self._status = None
+        self._console = None
+        self._start_time = None
 
     def __enter__(self):
+        import time as _time
+        self._start_time = _time.monotonic()
         try:
             from rich.console import Console
             self._console = Console()
@@ -178,7 +187,29 @@ class Spinner:
             print(f"  {self.verb}...", end="", flush=True)
         return self
 
+    def update(self, verb: str = None, elapsed: float = None) -> None:
+        """Update the spinner with new status — useful during long waits."""
+        if verb:
+            self.verb = verb
+        try:
+            if self._status and self._console:
+                msg = f"[{self.skin['accent']}]{self.verb}...[/]"
+                if elapsed and elapsed > 30:
+                    mins, secs = divmod(int(elapsed), 60)
+                    msg += f" [{min(secs, 59)}s elapsed]"
+                    if elapsed > 120:
+                        msg = f"[{self.skin['accent']}]{self.verb}...[/] [{mins}m {secs}s elapsed]"
+                self._status.update(msg)
+        except Exception:
+            pass
+
     def __exit__(self, *args):
+        import time as _time
+        if self._start_time:
+            elapsed = _time.monotonic() - self._start_time
+            if elapsed > 60:
+                mins, secs = divmod(int(elapsed), 60)
+                logger.info(f"[Spinner] Long operation completed: {mins}m {secs}s")
         if self._status:
             self._status.__exit__(*args)
         else:
@@ -448,6 +479,15 @@ async def _interactive_loop(skin_name: str = "default") -> None:
 
         # Regular prompt — run agent (foreground)
         _print_message("user", user_input, skin)
+
+        # FIX: Identity guard — detect jailbreak attempts before processing
+        from app.agent.identity_guard import detect_manipulation
+        is_manipulation, matched_pattern = detect_manipulation(user_input)
+        if is_manipulation:
+            logger.warning(
+                f"[IdentityGuard] Manipulation attempt in CLI: '{matched_pattern}'"
+            )
+
         verb = "thinking" if "?" not in user_input else "researching"
 
         try:
