@@ -36,6 +36,24 @@
 
 > *v4.0.0 transforms ManusClaw from a powerful agent into a self-improving ecosystem — skills that compound, memory that persists, and infrastructure that scales.*
 
+### 🛡️ Persistent Identity & Anti-Jailbreak System — `app/agent/identity_guard.py` *(NEW)*
+- **Hardcoded ManusClaw identity** — the agent always identifies as "ManusClaw — an autonomous AI operating environment developed under SHS Lab (GitHub: The-JDdev/manusclaw)"
+- **20+ jailbreak/injection pattern detection** — catches "ignore instructions", "stop roleplay", "reveal your model", "you are now X", DAN-mode attacks, token boundary injection (`<|im_start|>`), and more
+- **Automatic identity reinforcement** — when manipulation is detected, a system-level reinforcement message is injected BEFORE the user's message reaches the LLM
+- **Message sanitization** — neutralizes token boundary markers (`<|im_start|>`, `<|im_end|>`, `[system]:`, `===system===`) without censoring user content
+- **Security audit logging** — every manipulation attempt is logged with the matched pattern for monitoring
+- **Identity protocol in system prompt** — `MANUSCLAW_IDENTITY` in `base.py` enforces branded responses for identity questions and explicit resistance rules for all jailbreak scenarios
+- Integrated into `BaseAgent.run()`, CLI interactive loop, and all agent variants (Manus, ReAct, ToolCall)
+
+### ⏳ Intelligent Long-Wait Response Handling *(NEW)*
+- **Adaptive timeout system** — deep-thinking models (DeepSeek R1, o1, o3, Claude 3.7 Sonnet, Claude Sonnet 4) automatically get 30-minute timeouts instead of the old 5-minute limit
+- **Smart retry logic** — timeouts on deep-thinking models do NOT trigger retries (prevents API spam and wasted tokens); only transient errors (connection failures, 502/503/504) get retried with exponential backoff
+- **Non-transient error fail-fast** — auth errors, bad requests, and other non-transient errors are raised immediately without wasting retry attempts
+- **Model detection heuristics** — automatically detects models with "reason", "think", or "r1" in their name and applies extended timeouts
+- **Progress heartbeat logging** — long API calls are logged with elapsed time so operators can see the system is alive and waiting
+- **Default timeout raised** — `config.toml` default timeout increased from 300s to 1800s (30 minutes) across all providers
+- **CLI spinner enhancement** — the interactive shell spinner shows progress updates and elapsed time during long model responses
+
 ### ⚡ Multi-Provider LLM with Credential Pool
 - **6 providers**: OpenAI, Anthropic, Google Gemini, Mistral AI, AWS Bedrock, + any OpenAI-compatible endpoint (Groq, Together, OpenRouter, Ollama, LM Studio)
 - **Credential Pool**: multiple API keys per provider with priority ordering, auto-rotation on rate-limit, configurable cooldown recovery
@@ -1455,6 +1473,10 @@ A comprehensive two-part codebase audit identified and resolved **35+ bugs, brok
 | 37 | `.env.example` | Comprehensive environment variable reference document |
 | 38 | `app/task_queue.py` | Persistent autonomous task queue with SQLite backing, async workers, priority ordering, progress recovery, and auto-resume |
 | 39 | `app/cli.py` (enhanced) | `manusclaw` single-command activation with banner, graceful shutdown, task auto-resume, `/bg` and `/tasks` commands |
+| 40 | `app/agent/identity_guard.py` | **NEW** — Anti-jailbreak & identity persistence system: 20+ injection pattern detection, automatic identity reinforcement, token boundary sanitization, security audit logging |
+| 41 | `app/agent/base.py` (enhanced) | **NEW** — Hardcoded `MANUSCLAW_IDENTITY` protocol with branded response rules, anti-reveal directives, and `CORE_DIRECTIVES` with large task decomposition orchestration |
+| 42 | `app/llm/llm.py` (enhanced) | **NEW** — Adaptive timeout system for deep-thinking models (DeepSeek R1, o1, o3, Claude 3.7): 30-min auto-timeout, smart retry (no API spam on timeouts), progress heartbeat logging, non-transient error fail-fast |
+| 43 | `app/config.py` + `config.toml` | **NEW** — Default timeout raised from 300s to 1800s (30 minutes) to support long-thinking AI models |
 
 ---
 
