@@ -2,418 +2,721 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>ManusClaw v4.0 · Autonomous AI Ecosystem</title>
-
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ManusClaw v4.0.0 — The Ultimate Autonomous AI Ecosystem</title>
+    
+    <!-- Fonts: Inter (Body), Outfit (Headings), Fira Code (Mono) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Barlow:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    fontFamily: {
-                        heading: ["'Instrument Serif'", 'serif'],
-                        body: ["'Barlow'", 'sans-serif'],
-                        mono: ["'JetBrains Mono'", 'monospace'],
-                    },
-                    borderRadius: { DEFAULT: '9999px' },
-                },
-            },
-        }
-    </script>
-
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600&family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    
+    <!-- Font Awesome (Fixed CDN and Version) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
     <style>
-        *,
-        *::before,
-        *::after { box-sizing: border-box; margin:0; padding:0; }
+        :root {
+            --bg: #ffffff;
+            --text-main: #1a1a2e;
+            --text-muted: #555555;
+            --accent: #5b5fef;
+            --accent-glow: #7c3aed;
+            
+            /* Glassmorphism */
+            --glass-bg: rgba(255, 255, 255, 0.45);
+            --glass-border: rgba(255, 255, 255, 0.7);
+            --glass-blur: blur(24px) saturate(160%);
+            
+            /* Claymorphism */
+            --clay-shadow: 0 8px 32px rgba(0, 0, 0, 0.04), inset 0 -4px 12px rgba(0,0,0,0.03), inset 0 4px 10px rgba(255,255,255,0.8);
+            --clay-hover: 0 14px 44px rgba(0, 0, 0, 0.08), inset 0 -6px 16px rgba(0,0,0,0.04), inset 0 6px 12px rgba(255,255,255,0.9);
+            
+            /* Skeuomorphism */
+            --skeuo-shadow: 0 2px 4px rgba(0,0,0,0.1), 0 8px 24px rgba(0,0,0,0.1), inset 0 1px 1px rgba(255,255,255,0.6);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html { scroll-behavior: smooth; font-size: 16px; overflow-x: hidden; }
         body {
-            background: #020205;
-            color: #fff;
-            font-family: 'Barlow', sans-serif;
-            -webkit-font-smoothing: antialiased;
+            font-family: 'Inter', sans-serif;
+            background: var(--bg);
+            color: var(--text-main);
+            line-height: 1.6;
             overflow-x: hidden;
-        }
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
-
-        /* Glass design system */
-        .glass {
-            background: rgba(255,255,255,0.02);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-            border: 1px solid rgba(255,255,255,0.08);
-            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
-        }
-        .glass-strong {
-            background: rgba(0,0,0,0.3);
-            backdrop-filter: blur(40px);
-            -webkit-backdrop-filter: blur(40px);
-            border: 1px solid rgba(255,255,255,0.15);
-            box-shadow: 0 20px 60px rgba(0,0,0,0.7);
-        }
-        .card-hover {
-            transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
-        }
-        .card-hover:hover {
-            transform: translateY(-6px);
-            border-color: rgba(255,160,40,0.4);
-            box-shadow: 0 30px 60px rgba(255,100,20,0.25);
+            -webkit-font-smoothing: antialiased;
         }
 
-        /* Highlight text */
-        .hl {
-            background: linear-gradient(135deg, #ff7b1a, #e04000);
-            color: #fff;
-            padding: 0.08em 0.35em;
-            border-radius: 0.35em;
-            font-weight: 600;
-            display: inline-block;
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #a8a8a8; }
+
+        /* Typography */
+        h1, h2, h3, h4 { font-family: 'Outfit', sans-serif; }
+        .mono { font-family: 'Fira Code', monospace; }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0) rotate(0deg); }
+            33% { transform: translateY(-15px) rotate(1.5deg); }
+            66% { transform: translateY(-5px) rotate(-1deg); }
         }
-        .hl-cyan {
-            background: linear-gradient(135deg, #0098c7, #005f8a);
+        @keyframes dropletRipple {
+            0% { transform: scale(1); opacity: 0.6; }
+            100% { transform: scale(2.2); opacity: 0; }
+        }
+        @keyframes shimmerText {
+            0% { background-position: -200% center; }
+            100% { background-position: 200% center; }
+        }
+        @keyframes spinSlow {
+            100% { transform: rotate(360deg); }
         }
 
-        /* Terminal */
-        .terminal-box {
-            background: rgba(6,6,14,0.94);
-            border: 1px solid rgba(255,255,255,0.08);
-            border-radius: 1.25rem;
-            padding: 1.4rem;
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.8rem;
-            color: #c0d8ff;
-            box-shadow: 0 30px 60px rgba(0,0,0,0.8);
-            max-height: 380px;
-            overflow-y: auto;
+        .reveal {
+            opacity: 0; transform: translateY(40px);
+            transition: all 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94);
         }
-        .terminal-line {
-            animation: fadeLine 0.08s forwards;
-            white-space: pre-wrap;
-            word-break: break-word;
-        }
-        @keyframes fadeLine { from{opacity:0;} to{opacity:1;} }
-        .cursor-blk {
-            display:inline-block; width:0.5em; height:1.1em; background:#ffb020;
-            vertical-align:middle; animation:blink 0.9s infinite;
-        }
-        @keyframes blink { 0%,50%{opacity:1;} 51%,100%{opacity:0;} }
+        .reveal.visible { opacity: 1; transform: translateY(0); }
+        .d-1 { transition-delay: 0.1s; } .d-2 { transition-delay: 0.2s; } .d-3 { transition-delay: 0.3s; }
 
-        /* Chat bubbles */
-        .chat-bubble {
-            max-width:82%; padding:0.7rem 1.1rem; border-radius:1.6rem;
-            margin-bottom:0.7rem; font-size:0.88rem; line-height:1.4;
-            word-break:break-word; animation:popIn 0.35s ease-out;
+        .navbar {
+            position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+            width: 90%; max-width: 1200px; z-index: 1000;
+            background: var(--glass-bg); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
+            border: 1px solid var(--glass-border); border-radius: 50px;
+            padding: 12px 24px; display: flex; align-items: center; justify-content: space-between;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.04); transition: all 0.3s;
         }
-        .chat-user {
-            background:rgba(255,255,255,0.07); align-self:flex-end;
-            border-bottom-right-radius:0.3rem; margin-left:auto;
+        .navbar.scrolled { background: rgba(255,255,255,0.8); box-shadow: 0 8px 32px rgba(0,0,0,0.08); }
+        
+        .nav-brand {
+            font-size: 1.4rem; font-weight: 800; color: #111; text-decoration: none;
+            display: flex; align-items: center; gap: 10px;
         }
-        .chat-agent {
-            background:rgba(255,140,20,0.18); border-bottom-left-radius:0.3rem;
-            margin-right:auto;
+        .nav-brand img { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; box-shadow: 0 0 10px rgba(91,95,239,0.3); }
+        
+        .nav-links { display: flex; gap: 8px; list-style: none; align-items: center; }
+        .nav-links a {
+            text-decoration: none; color: #444; font-weight: 600; font-size: 0.95rem;
+            padding: 8px 16px; border-radius: 30px; transition: 0.3s;
         }
-        @keyframes popIn { from{opacity:0;transform:translateY(10px);} to{opacity:1;transform:translateY(0);} }
+        .nav-links a:hover { background: rgba(91,95,239,0.1); color: var(--accent); }
+        
+        .btn-donate-nav {
+            background: var(--accent); color: white !important;
+            box-shadow: 0 4px 15px rgba(91,95,239,0.3);
+        }
+        .btn-donate-nav:hover { background: var(--accent-glow); transform: translateY(-2px); }
 
-        /* Mind map */
-        .mind-node {
-            position:absolute; width:56px; height:56px; border-radius:50%;
-            display:flex; align-items:center; justify-content:center;
-            font-weight:700; font-size:0.65rem; text-align:center; line-height:1.2;
-            border:2px solid; background:rgba(0,0,0,0.6); backdrop-filter:blur(8px);
-            animation:nodePop 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
-            opacity:0; transform:scale(0);
+        /* Mobile 3-Dot Menu Button */
+        .menu-btn {
+            display: none; background: none; border: none; font-size: 1.5rem; 
+            color: #111; cursor: pointer; padding: 5px 10px;
         }
-        @keyframes nodePop { to{opacity:1;transform:scale(1);} }
-        .mind-line {
-            stroke-dasharray:300; stroke-dashoffset:300;
-            animation:draw 1.2s ease-in-out forwards;
+        
+        /* Glassmorphic Side Drawer */
+        .side-drawer {
+            position: fixed; top: 0; right: -100%; width: 300px; height: 100vh;
+            background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(30px);
+            border-left: 1px solid rgba(255,255,255,0.9); z-index: 1001;
+            box-shadow: -10px 0 40px rgba(0,0,0,0.1);
+            transition: right 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            display: flex; flex-direction: column; padding: 30px 20px;
         }
-        @keyframes draw { to{stroke-dashoffset:0;} }
+        .side-drawer.open { right: 0; }
+        .drawer-close {
+            align-self: flex-end; background: none; border: none; font-size: 1.8rem;
+            color: #333; cursor: pointer; margin-bottom: 20px;
+        }
+        .drawer-links { display: flex; flex-direction: column; gap: 15px; }
+        .drawer-links a {
+            text-decoration: none; color: #111; font-size: 1.1rem; font-weight: 600;
+            padding: 12px 20px; border-radius: 12px; background: rgba(0,0,0,0.03);
+            display: flex; align-items: center; gap: 12px; transition: 0.3s;
+        }
+        .drawer-links a i { color: var(--accent); width: 20px; text-align: center; }
+        .drawer-links a:hover { background: rgba(91,95,239,0.1); color: var(--accent); transform: translateX(5px); }
+        .drawer-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.2); backdrop-filter: blur(5px);
+            z-index: 1000; display: none; opacity: 0; transition: 0.3s;
+        }
+        .drawer-overlay.active { display: block; opacity: 1; }
 
-        /* Reveal on scroll */
-        .reveal-el {
-            opacity:0; transform:translateY(35px); filter:blur(6px);
-            transition: opacity 0.7s ease, transform 0.7s ease, filter 0.7s ease;
+        .hero {
+            position: relative; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+            padding: 150px 20px 80px; text-align: center; overflow: hidden;
+            background: radial-gradient(circle at 50% -20%, #f4f5ff 0%, #ffffff 70%);
         }
-        .reveal-el.visible { opacity:1; transform:translateY(0); filter:blur(0); }
+        /* Background Orbs */
+        .orb { position: absolute; border-radius: 50%; filter: blur(60px); z-index: 0; animation: spinSlow 20s linear infinite; }
+        .orb-1 { width: 400px; height: 400px; background: rgba(91,95,239,0.15); top: -100px; left: -100px; }
+        .orb-2 { width: 500px; height: 500px; background: rgba(236,72,153,0.1); bottom: -150px; right: -150px; animation-direction: reverse; }
 
-        /* 3D agent wrapper */
-        .agent-3d-wrap {
-            border-radius:2.5rem; overflow:hidden;
-            background:radial-gradient(circle at center, rgba(255,100,30,0.15) 0%, transparent 65%);
-            box-shadow:0 0 80px rgba(255,80,20,0.25), 0 0 160px rgba(0,180,255,0.12);
-            position:relative;
+        .hero-content { position: relative; z-index: 2; max-width: 900px; }
+        
+        .liquid-container { position: relative; width: 180px; height: 180px; margin: 0 auto 40px; animation: float 6s ease-in-out infinite; }
+        .liquid-droplet {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: radial-gradient(ellipse at 30% 30%, rgba(255,255,255,0.9) 0%, rgba(200,215,255,0.6) 40%, rgba(150,180,255,0.3) 80%);
+            border-radius: 40% 60% 70% 30% / 40% 50% 60% 50%;
+            box-shadow: inset 0 -10px 30px rgba(91,95,239,0.2), inset 0 5px 20px rgba(255,255,255,0.9), 0 15px 35px rgba(91,95,239,0.15);
+            display: flex; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,0.6);
+            overflow: hidden; z-index: 2;
         }
-        .agent-glow {
-            position:absolute; inset:-20px; border-radius:inherit;
-            background:conic-gradient(from 0deg, #ff6a00, #00a6ff, #ff6a00, #00a6ff, #ff6a00);
-            filter:blur(60px); opacity:0.35; animation:spinGlow 8s linear infinite;
-            pointer-events:none; z-index:-1;
+        .liquid-droplet img { width: 100px; height: 100px; object-fit: contain; z-index: 3; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.15)); }
+        .liquid-reflection {
+            position: absolute; top: 15%; left: 20%; width: 40px; height: 20px;
+            background: rgba(255,255,255,0.8); border-radius: 50%; transform: rotate(-30deg);
+            filter: blur(2px); z-index: 4;
         }
-        @keyframes spinGlow { to{transform:rotate(360deg);} }
+        .liquid-ripple {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            border-radius: 40% 60% 70% 30% / 40% 50% 60% 50%;
+            border: 2px solid rgba(91,95,239,0.3); z-index: 1;
+            animation: dropletRipple 3s ease-out infinite;
+        }
+        .liquid-ripple:nth-child(3) { animation-delay: 1s; }
+        .liquid-ripple:nth-child(4) { animation-delay: 2s; }
 
-        /* Smooth anchor */
-        html { scroll-behavior: smooth; }
+        .badge {
+            display: inline-block; padding: 8px 20px; background: var(--glass-bg);
+            border: 1px solid var(--glass-border); border-radius: 30px;
+            font-size: 0.9rem; font-weight: 700; color: #555; margin-bottom: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05); backdrop-filter: blur(10px);
+        }
+        .badge i { color: #10b981; margin-right: 6px; }
+
+        .hero h1 { font-size: clamp(2.5rem, 6vw, 4.5rem); font-weight: 900; line-height: 1.1; margin-bottom: 24px; color: #111; letter-spacing: -1px; }
+        .hero h1 span {
+            background: linear-gradient(135deg, #5b5fef, #ec4899, #f97316, #5b5fef);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            background-size: 200% auto; animation: shimmerText 4s linear infinite;
+        }
+        .hero p { font-size: 1.2rem; color: #555; max-width: 750px; margin: 0 auto 30px; }
+        .hero .creator { font-size: 1rem; font-weight: 600; color: #888; margin-bottom: 40px; }
+        .hero .creator span { color: var(--accent); }
+
+        .btn-group { display: flex; gap: 15px; justify-content: center; flex-wrap: wrap; }
+        .btn {
+            padding: 14px 30px; border-radius: 50px; font-weight: 600; font-size: 1rem;
+            text-decoration: none; display: inline-flex; align-items: center; gap: 10px;
+            transition: all 0.3s; cursor: pointer; border: none; font-family: 'Inter';
+        }
+        .btn-dark { background: #1a1a2e; color: white; box-shadow: 0 10px 20px rgba(26,26,46,0.2); }
+        .btn-dark:hover { background: #2d2d44; transform: translateY(-3px); box-shadow: 0 15px 30px rgba(26,26,46,0.3); }
+        .btn-glass { background: rgba(255,255,255,0.7); color: #111; border: 1px solid rgba(0,0,0,0.1); box-shadow: 0 4px 15px rgba(0,0,0,0.05); backdrop-filter: blur(10px); }
+        .btn-glass:hover { background: #fff; transform: translateY(-3px); border-color: rgba(0,0,0,0.2); }
+
+        .section { padding: 100px 20px; position: relative; z-index: 2; }
+        .section-alt { background: #f8fafc; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .sec-label { font-size: 0.9rem; font-weight: 800; text-transform: uppercase; letter-spacing: 2px; color: var(--accent); margin-bottom: 10px; display: block; }
+        .sec-title { font-size: clamp(2rem, 4vw, 3rem); font-weight: 800; margin-bottom: 20px; color: #111; letter-spacing: -0.5px; }
+        .sec-desc { font-size: 1.1rem; color: #666; max-width: 600px; margin-bottom: 50px; }
+        .text-center { text-align: center; }
+        .text-center .sec-desc { margin-left: auto; margin-right: auto; }
+
+        .glass-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 30px; }
+        .glass-card {
+            background: var(--glass-bg); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
+            border: 1px solid var(--glass-border); border-radius: 24px; padding: 35px 30px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.03); transition: all 0.4s ease;
+            position: relative; overflow: hidden;
+        }
+        .glass-card:hover { transform: translateY(-5px); box-shadow: 0 15px 40px rgba(91,95,239,0.1); border-color: #fff; }
+        .glass-icon { font-size: 2rem; margin-bottom: 20px; background: linear-gradient(135deg, var(--accent), var(--accent-glow)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .glass-card h3 { font-size: 1.3rem; margin-bottom: 15px; color: #111; }
+        .glass-card p { color: #555; font-size: 0.95rem; line-height: 1.7; }
+
+        .clay-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 30px; }
+        .clay-card {
+            background: #ffffff; border-radius: 30px; padding: 40px 30px;
+            box-shadow: var(--clay-shadow); transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            text-align: center; border: 1px solid rgba(0,0,0,0.02);
+        }
+        .clay-card:hover { box-shadow: var(--clay-hover); transform: translateY(-8px); }
+        .clay-icon-wrap {
+            width: 70px; height: 70px; margin: 0 auto 20px; border-radius: 22px;
+            display: flex; align-items: center; justify-content: center; font-size: 1.8rem;
+            box-shadow: inset 0 2px 6px rgba(255,255,255,0.8), 0 8px 20px rgba(0,0,0,0.08);
+        }
+        .clay-pink .clay-icon-wrap { background: #fdf2f8; color: #db2777; }
+        .clay-mint .clay-icon-wrap { background: #ecfdf5; color: #059669; }
+        .clay-lave .clay-icon-wrap { background: #f5f3ff; color: #6d28d9; }
+        .clay-sky .clay-icon-wrap { background: #eff6ff; color: #2563eb; }
+        .clay-orng .clay-icon-wrap { background: #fff7ed; color: #ea580c; }
+        .clay-slate .clay-icon-wrap { background: #f8fafc; color: #475569; }
+        .clay-card h3 { font-size: 1.25rem; margin-bottom: 12px; color: #1a1a2e; }
+        .clay-card p { font-size: 0.95rem; color: #666; }
+
+        .skeuo-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 35px; }
+        .skeuo-card {
+            border-radius: 20px; padding: 40px 30px; position: relative; overflow: hidden;
+            box-shadow: var(--skeuo-shadow); transition: 0.3s;
+        }
+        .skeuo-card:hover { transform: translateY(-3px); box-shadow: 0 10px 30px rgba(0,0,0,0.15), inset 0 1px 1px rgba(255,255,255,0.8); }
+        
+        /* Wood Texture */
+        .sk-wood {
+            background: repeating-linear-gradient(2deg, #e8d5b0 0px, #e0cda5 3px, #dcc89e 4px, #e8d5b0 7px), radial-gradient(circle, #f5ecd7, #c4a882);
+            background-blend-mode: multiply; border: 1px solid #b89f78; color: #3e2f1c;
+        }
+        .sk-wood h3 { color: #2a1e0f; text-shadow: 0 1px 0 rgba(255,255,255,0.4); font-weight: 800; font-size: 1.4rem; margin-bottom: 15px;}
+        
+        /* Metal Texture */
+        .sk-metal {
+            background: linear-gradient(160deg, #f0f0f3 0%, #dcdde1 25%, #ced0d6 50%, #e2e3e8 75%, #f5f6fa 100%);
+            border: 1px solid #a4b0be; box-shadow: var(--skeuo-shadow), inset 0 -2px 5px rgba(0,0,0,0.1);
+        }
+        .sk-metal h3 { color: #2f3542; text-shadow: 0 1px 1px #fff; font-weight: 800; font-size: 1.4rem; margin-bottom: 15px;}
+        
+        /* Leather Texture */
+        .sk-leather {
+            background: radial-gradient(circle at 50% 30%, #3a2222, #1f1111);
+            border: 1px solid #0a0505; color: #e8d5c4;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.4), inset 0 1px 1px rgba(255,255,255,0.1);
+        }
+        .sk-leather h3 { color: #f5e6d3; font-weight: 800; font-size: 1.4rem; margin-bottom: 15px; }
+        .sk-leather p { color: #c4b09e; }
+        
+        .sk-icon { font-size: 2.5rem; margin-bottom: 20px; display: block; }
+        .sk-wood .sk-icon { color: #5c4326; } .sk-metal .sk-icon { color: #57606f; } .sk-leather .sk-icon { color: #d1bfae; }
+        .sk-stitch { position: absolute; bottom: 15px; right: 20px; font-size: 0.75rem; letter-spacing: 2px; opacity: 0.6; text-transform: uppercase; font-weight: 700; }
+
+        /* Setup Code Block */
+        .code-block {
+            background: #1e1e2e; color: #cdd6f4; padding: 20px; border-radius: 16px;
+            font-family: 'Fira Code', monospace; font-size: 0.9rem; text-align: left;
+            overflow-x: auto; box-shadow: inset 0 2px 10px rgba(0,0,0,0.3);
+            border: 1px solid #313244; line-height: 1.5; margin: 20px 0;
+        }
+        .code-block span.cmd { color: #a6e3a1; }
+        .code-block span.cmt { color: #6c7086; }
+
+        .founder-card {
+            background: var(--glass-bg); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
+            border: 1px solid var(--glass-border); border-radius: 30px; padding: 50px;
+            max-width: 900px; margin: 0 auto; text-align: center; box-shadow: 0 10px 40px rgba(0,0,0,0.05);
+        }
+        .founder-img { width: 100px; height: 100px; border-radius: 50%; margin: 0 auto 20px; object-fit: cover; border: 3px solid #fff; box-shadow: 0 5px 15px rgba(0,0,0,0.1); }
+        .quote { font-size: 1.2rem; font-style: italic; color: #444; margin-bottom: 30px; line-height: 1.8; position: relative; }
+        .quote::before { content: '"'; font-size: 3rem; color: var(--accent); opacity: 0.3; position: absolute; top: -10px; left: -20px; font-family: serif; }
+        .founder-name { font-family: 'Outfit'; font-size: 1.5rem; font-weight: 800; color: #111; }
+        .founder-loc { font-size: 0.95rem; font-weight: 600; color: #10b981; margin-bottom: 30px; }
+
+        .social-flex { display: flex; gap: 15px; justify-content: center; flex-wrap: wrap; }
+        .soc-btn {
+            display: flex; align-items: center; gap: 10px; padding: 12px 25px; border-radius: 30px;
+            background: #fff; color: #333; font-weight: 600; text-decoration: none;
+            box-shadow: var(--clay-shadow); transition: 0.3s; border: 1px solid #f1f1f1;
+        }
+        .soc-btn:hover { transform: translateY(-3px); box-shadow: var(--clay-hover); }
+        .soc-btn i { font-size: 1.2rem; }
+        .c-fb { color: #1877F2; } .c-tg { color: #229ED9; } .c-em { color: #ea4335; } .c-gh { color: #333; }
+
+        .vault-bg { background: #111318; color: white; position: relative; }
+        .vault-bg::after { content: ''; position: absolute; top:0; left:0; width:100%; height:100%; background: radial-gradient(circle at center, transparent 0%, #000 100%); pointer-events: none; }
+        .vault-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 30px; position: relative; z-index: 2; }
+        
+        .vault-card {
+            background: linear-gradient(145deg, #242730, #181a20); border: 2px solid #353945;
+            border-radius: 16px; padding: 30px; position: relative;
+            box-shadow: inset 0 2px 5px rgba(255,255,255,0.1), inset 0 -3px 5px rgba(0,0,0,0.6), 0 10px 30px rgba(0,0,0,0.8);
+            transition: 0.3s;
+        }
+        .vault-card:hover { transform: translateY(-5px); border-color: #4a4f60; }
+        .screw { position: absolute; width: 10px; height: 10px; border-radius: 50%; background: #555; box-shadow: inset 0 1px 2px #aaa, inset 0 -1px 2px #111; }
+        .tl { top: 15px; left: 15px; } .tr { top: 15px; right: 15px; } .bl { bottom: 15px; left: 15px; } .br { bottom: 15px; right: 15px; }
+        
+        .v-title { display: flex; align-items: center; gap: 10px; font-family: 'Outfit'; font-size: 1.2rem; font-weight: 700; color: #e2e8f0; margin-bottom: 15px; }
+        .v-address {
+            background: #0b0c10; padding: 15px; border-radius: 8px; border: 1px solid #000;
+            font-family: 'Fira Code', monospace; font-size: 0.9rem; color: #10b981;
+            word-break: break-all; box-shadow: inset 0 3px 10px rgba(0,0,0,0.8);
+            cursor: pointer; position: relative; transition: 0.2s;
+        }
+        .v-address:hover { background: #13151c; color: #34d399; }
+        .v-address::after { content: 'Click to copy'; position: absolute; top: -25px; right: 0; background: var(--accent); color: white; font-size: 0.7rem; padding: 4px 8px; border-radius: 4px; opacity: 0; transition: 0.2s; font-family: 'Inter'; }
+        .v-address:hover::after { opacity: 1; }
+
+        /* Footer */
+        .footer { padding: 40px 20px; text-align: center; background: #0b0c10; color: #888; border-top: 1px solid #1a1a2e; }
+        .footer a { color: #ccc; text-decoration: none; font-weight: 600; margin: 0 10px; }
+        .footer a:hover { color: var(--accent); }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .nav-links, .btn-donate-nav { display: none; }
+            .menu-btn { display: block; }
+            .hero { padding-top: 120px; }
+            .hero h1 { font-size: 2.2rem; }
+            .liquid-container { width: 140px; height: 140px; }
+            .liquid-droplet img { width: 80px; height: 80px; }
+            .section { padding: 60px 20px; }
+            .founder-card { padding: 30px 20px; }
+        }
     </style>
 </head>
 <body>
-    <div id="root"></div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://unpkg.com/react@18.3.1/umd/react.development.js"></script>
-    <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js"></script>
-    <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js"></script>
-    <script src="https://unpkg.com/framer-motion@11.11.17/dist/framer-motion.js"></script>
+    <nav class="navbar" id="navbar">
+        <a href="#" class="nav-brand">
+            <img src="https://i.postimg.cc/G2KGfvGK/20260601-200059.png" alt="ManusClaw Logo">
+            ManusClaw
+        </a>
+        
+        <!-- Desktop Links -->
+        <ul class="nav-links">
+            <li><a href="#hermes">v4.0 Hermes</a></li>
+            <li><a href="#architecture">Architecture</a></li>
+            <li><a href="#tools">Core Tools</a></li>
+            <li><a href="#engines">OS Engines</a></li>
+            <li><a href="#modes">Deploy Modes</a></li>
+        </ul>
+        <a href="#vault" class="btn btn-donate-nav"><i class="fa-solid fa-bolt"></i> Donate</a>
+        
+        <!-- Mobile 3-Dot Button -->
+        <button class="menu-btn" id="menuBtn"><i class="fa-solid fa-ellipsis-vertical"></i></button>
+    </nav>
+
+    <!-- Mobile Drawer Overlay & Menu -->
+    <div class="drawer-overlay" id="drawerOverlay"></div>
+    <div class="side-drawer" id="sideDrawer">
+        <button class="drawer-close" id="closeDrawer"><i class="fa-solid fa-xmark"></i></button>
+        <div class="drawer-links">
+            <a href="#hermes" class="drawer-link"><i class="fa-solid fa-rocket"></i> v4.0 Hermes Update</a>
+            <a href="#architecture" class="drawer-link"><i class="fa-solid fa-diagram-project"></i> Architecture</a>
+            <a href="#tools" class="drawer-link"><i class="fa-solid fa-screwdriver-wrench"></i> Core Tools</a>
+            <a href="#engines" class="drawer-link"><i class="fa-solid fa-gears"></i> OS Engines</a>
+            <a href="#modes" class="drawer-link"><i class="fa-solid fa-server"></i> Deploy Modes</a>
+            <a href="#community" class="drawer-link"><i class="fa-solid fa-users"></i> Community</a>
+            <a href="#vault" class="drawer-link" style="background: var(--accent); color: white;"><i class="fa-solid fa-vault"></i> Donation Vault</a>
+        </div>
+    </div>
+
+    <section class="hero">
+        <div class="orb orb-1"></div>
+        <div class="orb orb-2"></div>
+        <div class="hero-content reveal">
+            
+            <div class="liquid-container">
+                <div class="liquid-droplet">
+                    <img src="https://i.postimg.cc/G2KGfvGK/20260601-200059.png" alt="ManusClaw Agent">
+                </div>
+                <div class="liquid-reflection"></div>
+                <div class="liquid-ripple"></div>
+                <div class="liquid-ripple"></div>
+            </div>
+            
+            <div class="badge"><i class="fa-solid fa-shield-halved"></i> v4.0.0 Hermes Integration</div>
+            <h1>The Ultimate Autonomous <br><span>AI Ecosystem</span></h1>
+            <p>Not a wrapper. Not a demo. A full OS-level, multi-agent, self-improving execution engine with skills, memory, and multi-provider intelligence.</p>
+            <div class="creator">Built from <span>Bangladesh</span>, on a smartphone 🇧🇩</div>
+            
+            <div class="btn-group">
+                <a href="https://github.com/The-JDdev/ManusClaw" target="_blank" class="btn btn-dark"><i class="fa-brands fa-github"></i> Core Repository</a>
+                <a href="https://github.com/The-JDdev/manusclaw-setup" target="_blank" class="btn btn-glass"><i class="fa-solid fa-terminal"></i> Get Setup Script</a>
+            </div>
+        </div>
+    </section>
+
+    <section class="section section-alt" id="hermes">
+        <div class="container">
+            <div class="text-center">
+                <span class="sec-label"><i class="fa-solid fa-bolt"></i> The Hermes Update</span>
+                <h2 class="sec-title">What's New in v4.0.0</h2>
+                <p class="sec-desc">ManusClaw transforms from a powerful agent into a self-improving ecosystem.</p>
+            </div>
+            <div class="glass-grid">
+                <div class="glass-card reveal d-1">
+                    <div class="glass-icon"><i class="fa-solid fa-user-shield"></i></div>
+                    <h3>Anti-Jailbreak Identity</h3>
+                    <p>Hardcoded identity protection with 20+ jailbreak/injection pattern detection. Intercepts DAN-mode attacks, `<|im_start|>` injections, and forces OS-level resistance before reaching the LLM.</p>
+                </div>
+                <div class="glass-card reveal d-2">
+                    <div class="glass-icon"><i class="fa-solid fa-hourglass-half"></i></div>
+                    <h3>Intelligent Long-Wait</h3>
+                    <p>Adaptive 30-minute timeouts for deep-thinking models (DeepSeek R1, o1, Claude 3.7). Smart retry logic prevents API spam while handling transient network errors gracefully.</p>
+                </div>
+                <div class="glass-card reveal d-3">
+                    <div class="glass-icon"><i class="fa-solid fa-list-check"></i></div>
+                    <h3>Persistent Task Queue</h3>
+                    <p>SQLite-backed background execution. Send tasks to the background via `/bg`. Priority ordering, crash survival, and auto-resume on the next launch.</p>
+                </div>
+                <div class="glass-card reveal d-1">
+                    <div class="glass-icon"><i class="fa-solid fa-microchip"></i></div>
+                    <h3>Universal LLM Routing</h3>
+                    <p>Support for OpenAI, Anthropic, Gemini, Mistral, OpenRouter, and fully offline local inferencing via Ollama, LM Studio, or raw GGUF files. Auto-rotates credentials on rate limits.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="section" id="architecture">
+        <div class="container text-center">
+            <span class="sec-label"><i class="fa-solid fa-network-wired"></i> DAG Orchestration</span>
+            <h2 class="sec-title">Multi-Agent Brain</h2>
+            <p class="sec-desc">A MetaGPT-style pipeline orchestrating four specialist roles using Kahn's topological sort. Every role builds on verified output.</p>
+            
+            <div class="glass-grid" style="margin-top: 40px;">
+                <div class="glass-card reveal">
+                    <h3>1. Product Manager 📝</h3>
+                    <p>Writes the structured PRD. Defines the objective, explicit in-scope/out-of-scope boundaries, and measurable acceptance criteria.</p>
+                </div>
+                <div class="glass-card reveal d-1">
+                    <h3>2. Architect 🏛️</h3>
+                    <p>Produces concrete system design, exact directory trees, technology stacks, and a DAG implementation plan mapping task dependencies.</p>
+                </div>
+                <div class="glass-card reveal d-2">
+                    <h3>3. Engineer ⚙️</h3>
+                    <p>Delegates to a full Manus instance. Executes the DAG tasks in topological order, writes code, runs it, and self-corrects errors.</p>
+                </div>
+                <div class="glass-card reveal d-3">
+                    <h3>4. QA Role 🔬</h3>
+                    <p>Runs actual tests based on PRD criteria. Produces a pass/fail QA Report with strict defect tracking to ensure production readiness.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="section section-alt" id="tools">
+        <div class="container text-center">
+            <span class="sec-label"><i class="fa-solid fa-cubes-stacked"></i> Lethal Arsenal</span>
+            <h2 class="sec-title">Soft Shapes. Industrial Power.</h2>
+            <p class="sec-desc">Claymorphic modules hiding raw computational dominance. The agent acts on the real world through these tools.</p>
+            
+            <div class="clay-grid">
+                <div class="clay-card clay-pink reveal">
+                    <div class="clay-icon-wrap"><i class="fa-solid fa-terminal"></i></div>
+                    <h3>Persistent Bash</h3>
+                    <p>Stateful shell sessions that survive across tool calls. Navigate directories, install packages, and manage the OS natively.</p>
+                </div>
+                <div class="clay-card clay-mint reveal d-1">
+                    <div class="clay-icon-wrap"><i class="fa-brands fa-python"></i></div>
+                    <h3>Isolated Python</h3>
+                    <p>Runs code in a fresh multiprocessing sandbox with a 2GB virtual memory limit. Full imports, zero truncation.</p>
+                </div>
+                <div class="clay-card clay-lave reveal d-2">
+                    <div class="clay-icon-wrap"><i class="fa-solid fa-globe"></i></div>
+                    <h3>Browser Autonomy</h3>
+                    <p>Playwright-driven headless Chromium. The agent can navigate, click, extract, and interact with modern web apps.</p>
+                </div>
+                <div class="clay-card clay-sky reveal">
+                    <div class="clay-icon-wrap"><i class="fa-solid fa-server"></i></div>
+                    <h3>Platform Domination</h3>
+                    <p>End-to-end autonomous control over GitHub, Vercel, WordPress, Netlify, Discord, and REST APIs without human intervention.</p>
+                </div>
+                <div class="clay-card clay-orng reveal d-1">
+                    <div class="clay-icon-wrap"><i class="fa-solid fa-brain"></i></div>
+                    <h3>FTS5 RAG Memory</h3>
+                    <p>SQLite-backed Full-Text Search virtual tables. Cross-session memory allows the agent to recall past failures and solutions.</p>
+                </div>
+                <div class="clay-card clay-slate reveal d-2">
+                    <div class="clay-icon-wrap"><i class="fa-solid fa-graduation-cap"></i></div>
+                    <h3>Auto-Learning Skills</h3>
+                    <p>After 5 tool calls, the agent suggests capturing workflows as Markdown skills. Preserves prompt caching seamlessly.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="section" id="engines">
+        <div class="container text-center">
+            <span class="sec-label"><i class="fa-solid fa-hammer"></i> Internal Engines</span>
+            <h2 class="sec-title">Digital That Feels Real</h2>
+            <p class="sec-desc">Real-world textures reflecting the tangible impact of the systems underneath. Solid logic built with timeless craft.</p>
+            
+            <div class="skeuo-grid" style="margin-top:40px;">
+                <div class="skeuo-card sk-wood reveal">
+                    <i class="fa-solid fa-clipboard-list sk-icon"></i>
+                    <h3>PAORR Loop Logic</h3>
+                    <p>Plan → Act → Observe → Reflect → Retry. The agent scores tools against sub-goals, injects tool intelligence, detects infinite loops, and forces self-correction every 3 steps.</p>
+                    <div class="sk-stitch">━ ━ calculated</div>
+                </div>
+                <div class="skeuo-card sk-metal reveal d-1">
+                    <i class="fa-solid fa-shield-halved sk-icon"></i>
+                    <h3>3-Tier Permission Gate</h3>
+                    <p><strong>Tier 1:</strong> Auto-approved (Search).<br><strong>Tier 2:</strong> Requires approval in Plan Mode, auto in Build Mode (Code).<br><strong>Tier 3:</strong> Hard blocked (OS-destroying fork bombs).</p>
+                    <div class="sk-stitch">◇ ◇ secured</div>
+                </div>
+                <div class="skeuo-card sk-leather reveal d-2">
+                    <i class="fa-solid fa-book-journal-whills sk-icon"></i>
+                    <h3>Audit Ledger DB</h3>
+                    <p>Bound leather logging. Every tool call, argument, standard output, error trace, and duration is inscribed permanently into WAL-mode SQLite databases. Unbreakable continuity.</p>
+                    <div class="sk-stitch">◆ ◆ timeless</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="section section-alt" id="modes">
+        <div class="container">
+            <div class="text-center">
+                <span class="sec-label"><i class="fa-solid fa-layer-group"></i> The Quartet</span>
+                <h2 class="sec-title">Four Deployment Modes</h2>
+                <p class="sec-desc">Run ManusClaw exactly where you need it. From heavy cloud servers to a pocket smartphone.</p>
+            </div>
+            
+            <div class="glass-grid">
+                <div class="glass-card reveal">
+                    <div class="glass-icon"><i class="fa-solid fa-terminal"></i></div>
+                    <h3>Standalone CLI</h3>
+                    <p>Native terminal experience for Linux, macOS, and Windows. Type <code>manusclaw</code> to wake the persistent shell.</p>
+                </div>
+                <div class="glass-card reveal d-1">
+                    <div class="glass-icon"><i class="fa-brands fa-docker"></i></div>
+                    <h3>Docker Sandbox</h3>
+                    <p>Fully isolated container execution. Ideal for production APIs, CI/CD, and security-sensitive operations.</p>
+                </div>
+                <div class="glass-card reveal d-2">
+                    <div class="glass-icon"><i class="fa-brands fa-android"></i></div>
+                    <h3>Termux Native</h3>
+                    <p>Run directly on an Android smartphone. Built and tested natively on mobile. No root required.</p>
+                </div>
+                <div class="glass-card reveal d-3">
+                    <div class="glass-icon"><i class="fa-solid fa-desktop"></i></div>
+                    <h3>Desktop GUI</h3>
+                    <p>Cross-platform application built with Flet. Terminal-style chat interface with background daemon execution.</p>
+                </div>
+            </div>
+
+            <div class="code-block reveal" style="max-width: 800px; margin: 40px auto 0;">
+                <span class="cmt"># Global Wake-Up Command (after setup)</span><br><br>
+                <span class="cmd">manusclaw</span><br>
+                <span class="cmt">> AI Environment Active. Type prompts naturally.</span><br><br>
+                <span class="cmt"># Run a background task</span><br>
+                <span class="cmd">> /bg Build a FastAPI server with auth</span><br><br>
+                <span class="cmt"># Launch the WebSocket server</span><br>
+                <span class="cmd">manusclaw-server --host 0.0.0.0 --port 8765</span>
+            </div>
+        </div>
+    </section>
+
+    <section class="section" id="community">
+        <div class="container">
+            <div class="founder-card reveal">
+                <img src="https://avatars.githubusercontent.com/u/74384931?v=4" alt="The-JDdev" class="founder-img" onerror="this.src='https://placehold.co/100x100/5b5fef/ffffff?text=JD'">
+                <p class="quote">I built this massive, autonomous AI architecture from Bangladesh, using nothing but my smartphone. Compiling, testing, and running an ecosystem of this scale on a mobile device is incredibly difficult and incurs server/API costs. I poured my heart into giving you total uncensored power.</p>
+                <div class="founder-name">The-JDdev (SHS Shobuj)</div>
+                <div class="founder-loc">Founder & Lead Architect</div>
+                
+                <div class="social-flex">
+                    <a href="https://fb.com/itsshsshobuj" target="_blank" class="soc-btn"><i class="fa-brands fa-facebook c-fb"></i> Facebook</a>
+                    <a href="https://t.me/aamoviesadmin" target="_blank" class="soc-btn"><i class="fa-brands fa-telegram c-tg"></i> Telegram</a>
+                    <a href="mailto:thejddev.official@gmail.com" class="soc-btn"><i class="fa-solid fa-envelope c-em"></i> Email</a>
+                    <a href="https://github.com/The-JDdev" target="_blank" class="soc-btn"><i class="fa-brands fa-github c-gh"></i> GitHub</a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="section vault-bg" id="vault">
+        <div class="container text-center">
+            <span class="sec-label" style="color:#f59e0b;"><i class="fa-solid fa-vault"></i> Fuel the Beast</span>
+            <h2 class="sec-title" style="color:#fff;">The Donation Vault</h2>
+            <p class="sec-desc" style="color:#aaa;">If ManusClaw has empowered your work, your support directly funds continued development, API testing across providers, and server costs. Kept alive by a solo dev.</p>
+            
+            <div class="vault-grid">
+                <div class="vault-card reveal">
+                    <div class="screw tl"></div><div class="screw tr"></div><div class="screw bl"></div><div class="screw br"></div>
+                    <div class="v-title"><i class="fa-brands fa-ethereum" style="color:#10b981;"></i> USDT (TRC20 - Tron)</div>
+                    <div class="v-address" onclick="copyToClip(this)">TH75J4zaMPwhyR3QxEFdwTCgU2Pp3yPUEr</div>
+                </div>
+                
+                <div class="vault-card reveal d-1">
+                    <div class="screw tl"></div><div class="screw tr"></div><div class="screw bl"></div><div class="screw br"></div>
+                    <div class="v-title"><i class="fa-solid fa-wallet" style="color:#3b82f6;"></i> WebMoney (WMT & WMZ)</div>
+                    <div class="v-address" style="margin-bottom:10px;" onclick="copyToClip(this)">T202226490170</div>
+                    <div class="v-address" onclick="copyToClip(this)">Z430378899900</div>
+                </div>
+                
+                <div class="vault-card reveal d-2">
+                    <div class="screw tl"></div><div class="screw tr"></div><div class="screw bl"></div><div class="screw br"></div>
+                    <div class="v-title"><i class="fa-solid fa-mobile-screen" style="color:#ec4899;"></i> bKash (Bangladesh)</div>
+                    <div class="v-address" onclick="copyToClip(this)">01310211442</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <footer class="footer">
+        <p>© 2026 <strong>ManusClaw v4.0.0</strong> — Built with <i class="fa-solid fa-fire" style="color:#ec4899;"></i> from Bangladesh by The-JDdev.</p>
+        <div style="margin-top: 15px;">
+            <a href="https://github.com/The-JDdev/ManusClaw"><i class="fa-brands fa-github"></i> Repository</a>
+            <a href="https://github.com/The-JDdev/manusclaw-setup"><i class="fa-solid fa-box-open"></i> Setup Script</a>
+            <a href="https://github.com/The-JDdev/ManusClaw/issues"><i class="fa-solid fa-bug"></i> Report Bug</a>
+        </div>
+    </footer>
+
     <script>
-        window.Motion = window.FramerMotion || {
-            motion: { div:'div',span:'span',p:'p',h1:'h1',h2:'h2',h3:'h3',section:'section',main:'main',nav:'nav',button:'button',a:'a',svg:'svg',g:'g',line:'line',circle:'circle',text:'text' },
-            useInView: () => true,
-            AnimatePresence: ({ children }) => children,
-        };
-        console.error = (...a) => { if (typeof a[0]==='string' && a[0].includes('unique "key"')) return; console.error.apply(console,a); };
-    </script>
-
-    <script type="text/babel">
-        const { useRef, useEffect, useState } = React;
-        const { motion, useInView } = window.Motion;
-
-        // Error boundary
-        class ErrB extends React.Component {
-            constructor(p){ super(p); this.state={e:null}; }
-            static getDerivedStateFromError(e){ return {e}; }
-            render(){
-                if(this.state.e) return <div className="glass-strong p-6 rounded-2xl text-center m-4">
-                    <p className="text-amber-400 text-lg mb-1">⚡ Section unavailable</p>
-                    <p className="text-white/50 text-xs mb-3">{this.state.e.message}</p>
-                    <button onClick={()=>this.setState({e:null})} className="glass px-4 py-1 rounded-full text-xs">Retry</button>
-                </div>;
-                return this.props.children;
+        // Copy to clipboard function for Donation addresses
+        function copyToClip(el) {
+            const text = el.innerText;
+            const originalText = text;
+            const tempTextArea = document.createElement("textarea");
+            tempTextArea.value = text;
+            document.body.appendChild(tempTextArea);
+            tempTextArea.select();
+            try {
+                document.execCommand('copy');
+                el.innerText = 'Copied!';
+                el.style.color = '#fff';
+                el.style.background = '#10b981';
+                setTimeout(() => {
+                    el.innerText = originalText;
+                    el.style.color = '#10b981';
+                    el.style.background = '#0b0c10';
+                }, 1500);
+            } catch (err) {
+                console.error('Failed to copy', err);
             }
+            document.body.removeChild(tempTextArea);
         }
 
-        // 3D Agent
-        function Agent3D() {
-            const ref = useRef(null);
-            const [ok, setOk] = useState(false);
-            useEffect(() => {
-                const c = ref.current; if(!c || !window.THREE) { setOk(true); return; }
-                try {
-                    const s = new THREE.Scene();
-                    const cam = new THREE.PerspectiveCamera(42, c.clientWidth/Math.max(c.clientHeight,1), 0.1, 100);
-                    cam.position.z=5.5;
-                    const r = new THREE.WebGLRenderer({alpha:true,antialias:true});
-                    r.setSize(c.clientWidth,c.clientHeight); r.setPixelRatio(Math.min(devicePixelRatio,2));
-                    r.setClearColor(0,0); c.appendChild(r.domElement);
+        // Navbar Scroll Effect
+        const navbar = document.getElementById('navbar');
+        window.addEventListener('scroll', () => {
+            if (window.scrollY > 50) {
+                navbar.classList.add('scrolled');
+            } else {
+                navbar.classList.remove('scrolled');
+            }
+        });
 
-                    const core = new THREE.Mesh(
-                        new THREE.IcosahedronGeometry(1.1,3),
-                        new THREE.MeshStandardMaterial({color:0xff5e00,roughness:0.18,metalness:0.85,emissive:new THREE.Color(0x2a0800)})
-                    ); s.add(core);
-                    const eyeMat = new THREE.MeshStandardMaterial({color:0x00f0ff,roughness:0.05,emissive:new THREE.Color(0x003333),emissiveIntensity:1.2});
-                    const le = new THREE.Mesh(new THREE.SphereGeometry(0.22,20,20), eyeMat); le.position.set(-0.42,0.35,0.95);
-                    const re = new THREE.Mesh(new THREE.SphereGeometry(0.22,20,20), eyeMat); re.position.set(0.42,0.35,0.95);
-                    s.add(le); s.add(re);
-                    const ring = new THREE.Mesh(new THREE.TorusGeometry(1.35,0.06,16,80), new THREE.MeshStandardMaterial({color:0xff8c1a,roughness:0.22,metalness:0.95,emissive:new THREE.Color(0x1a0500)}));
-                    ring.rotation.x=Math.PI/2.1; s.add(ring);
-                    const ring2 = new THREE.Mesh(new THREE.TorusGeometry(1.2,0.04,12,60), new THREE.MeshStandardMaterial({color:0x00aaff,roughness:0.15,metalness:0.9,emissive:new THREE.Color(0x001122)}));
-                    ring2.rotation.x=Math.PI/1.6; ring2.rotation.y=Math.PI/3; s.add(ring2);
-                    s.add(new THREE.AmbientLight(0x334466,0.9));
-                    const d1 = new THREE.DirectionalLight(0xffccaa,1.5); d1.position.set(3,3,5); s.add(d1);
-                    const d2 = new THREE.DirectionalLight(0x88ccff,0.8); d2.position.set(-2,-1,-3); s.add(d2);
-                    s.add(new THREE.PointLight(0x0066ff,0.7,8)).position.set(1,-1,2);
+        // Mobile Drawer Logic (3-Dot Menu)
+        const menuBtn = document.getElementById('menuBtn');
+        const sideDrawer = document.getElementById('sideDrawer');
+        const drawerOverlay = document.getElementById('drawerOverlay');
+        const closeDrawer = document.getElementById('closeDrawer');
+        const drawerLinks = document.querySelectorAll('.drawer-link');
 
-                    let id;
-                    function anim(){
-                        id=requestAnimationFrame(anim);
-                        const t=Date.now()*0.001;
-                        core.rotation.y+=0.008; core.rotation.x=Math.sin(t*0.4)*0.1;
-                        ring.rotation.z+=0.012; ring2.rotation.z-=0.008; ring2.rotation.x+=0.005;
-                        le.material.emissiveIntensity=0.5+Math.sin(t*3.5)*0.4;
-                        re.material.emissiveIntensity=0.5+Math.cos(t*3.5)*0.4;
-                        r.render(s,cam);
-                    }
-                    anim(); setOk(true);
-                    const resize=()=>{
-                        cam.aspect=c.clientWidth/Math.max(c.clientHeight,1); cam.updateProjectionMatrix();
-                        r.setSize(c.clientWidth,c.clientHeight);
-                    };
-                    window.addEventListener('resize',resize);
-                    return ()=>{ cancelAnimationFrame(id); window.removeEventListener('resize',resize); c.removeChild(r.domElement); r.dispose(); };
-                } catch(e){ setOk(true); }
-            },[]);
-            return (
-                <div ref={ref} className="agent-3d-wrap w-full h-72 sm:h-80 md:h-96 lg:h-[440px] relative">
-                    <div className="agent-glow"/>
-                    {!ok && <div className="absolute inset-0 flex items-center justify-center z-10"><span className="text-5xl animate-bounce">🤖</span></div>}
-                </div>
-            );
+        function toggleDrawer() {
+            sideDrawer.classList.toggle('open');
+            drawerOverlay.classList.toggle('active');
         }
 
-        // Terminal
-        function Term() {
-            const [lines, setLines] = useState([]);
-            const mounted = useRef(true);
-            const script = [
-                {t:"$ manusclaw \"Build REST API\"", c:"text-green-300"},
-                {t:"▸ Starting agent run (session 3f2a1b4c)", c:"text-blue-200"},
-                {t:"▸ Step 1/30 — PAORR loop initiated", c:"text-gray-300"},
-                {t:"▸ Tool: web_search('Python async frameworks')", c:"text-yellow-200"},
-                {t:"▸ Result: FastAPI, Litestar, Sanic found", c:"text-gray-400"},
-                {t:"▸ Step 2/30 — Writing scaffold", c:"text-gray-300"},
-                {t:"▸ Tool: str_replace_editor → api.py", c:"text-yellow-200"},
-                {t:"▸ Running tests: python_execute...", c:"text-blue-200"},
-                {t:"✓ All 14 tests passed.", c:"text-green-400 font-bold"},
-                {t:"✓ Session finished: 6 steps · 2.8s", c:"text-green-300"},
-            ];
-            useEffect(()=>{
-                mounted.current=true; let i=0;
-                const iv=setInterval(()=>{ if(!mounted.current) return; if(i<script.length){ setLines(p=>[...p,script[i]]); i++; } else clearInterval(iv); },300);
-                return ()=>{ mounted.current=false; clearInterval(iv); };
-            },[]);
-            return (
-                <div className="terminal-box w-full max-w-2xl mx-auto">
-                    {lines.map((l,i)=>l?<div key={i} className="terminal-line flex gap-2"><span className="text-amber-400 select-none">❯</span><span className={l.c}>{l.t}</span></div>:null)}
-                    <div className="flex gap-2 mt-1"><span className="text-amber-400">❯</span><span className="cursor-blk"/></div>
-                </div>
-            );
-        }
+        menuBtn.addEventListener('click', toggleDrawer);
+        closeDrawer.addEventListener('click', toggleDrawer);
+        drawerOverlay.addEventListener('click', toggleDrawer);
+        drawerLinks.forEach(link => {
+            link.addEventListener('click', toggleDrawer);
+        });
 
-        // Chat
-        function Chat() {
-            const [msgs, setMsgs] = useState([]);
-            const mounted = useRef(true);
-            const dialog = [
-                {s:'user',t:'Build me a CPU monitor CLI'},
-                {s:'agent',t:'Analyzing… using psutil + rich.'},
-                {s:'agent',t:'Installing dependencies in sandbox…'},
-                {s:'user',t:'Add live graph too.'},
-                {s:'agent',t:'Good idea. Adding matplotlib.'},
-                {s:'agent',t:'✓ Done. cpu_monitor.py — 142 lines.'},
-            ];
-            useEffect(()=>{
-                mounted.current=true; let i=0;
-                const iv=setInterval(()=>{ if(!mounted.current) return; if(i<dialog.length){ setMsgs(p=>[...p,dialog[i]]); i++; } else clearInterval(iv); },650);
-                return ()=>{ mounted.current=false; clearInterval(iv); };
-            },[]);
-            return (
-                <div className="flex flex-col gap-1 w-full max-w-sm mx-auto p-3">
-                    {msgs.map((m,i)=>m?<div key={i} className={`chat-bubble ${m.s==='user'?'chat-user':'chat-agent'}`}><span className="text-[10px] opacity-50 block mb-0.5">{m.s==='user'?'You':'🤖 ManusClaw'}</span>{m.t}</div>:null)}
-                </div>
-            );
-        }
+        // Intersection Observer for Reveal Animations
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('visible');
+                    // Optional: Unobserve after animating once
+                    // observer.unobserve(entry.target);
+                }
+            });
+        }, { threshold: 0.15 });
 
-        // Mind map
-        function MindMap() {
-            const ref = useRef(null); const [vis,setVis]=useState(false);
-            useEffect(()=>{ const el=ref.current; if(!el) return; const obs=new IntersectionObserver(([e])=>{if(e.isIntersecting){setVis(true);obs.disconnect();}},{threshold:0.3}); obs.observe(el); return ()=>obs.disconnect(); },[]);
-            const nodes = [
-                {id:'pm',label:'Product\nManager',x:80,y:90,color:'#ff8c00',delay:0},
-                {id:'arch',label:'Architect',x:280,y:30,color:'#a855f7',delay:0.2},
-                {id:'eng',label:'Engineer',x:280,y:160,color:'#f59e0b',delay:0.35},
-                {id:'qa',label:'QA',x:460,y:95,color:'#10b981',delay:0.5},
-            ];
-            const edges=[{from:'pm',to:'arch'},{from:'pm',to:'eng'},{from:'arch',to:'eng'},{from:'eng',to:'qa'}];
-            return (
-                <div ref={ref} className="relative w-full max-w-lg mx-auto h-64 select-none">
-                    <svg className="absolute inset-0 w-full h-full" viewBox="0 0 540 220">
-                        {edges.map((e,i)=>{ const f=nodes.find(n=>n.id===e.from), t=nodes.find(n=>n.id===e.to); return <line key={i} x1={f.x+28} y1={f.y+28} x2={t.x+28} y2={t.y+28} stroke="rgba(255,255,255,0.25)" strokeWidth="2" className="mind-line" style={{animationDelay:`${0.4+i*0.25}s`,animationPlayState:vis?'running':'paused'}}/>; })}
-                    </svg>
-                    {nodes.map(n=><div key={n.id} className="mind-node" style={{left:n.x,top:n.y,borderColor:n.color,color:n.color,animationDelay:`${n.delay}s`,animationPlayState:vis?'running':'paused'}}>{n.label.split('\n').map((l,i)=><span key={i}>{l}</span>)}</div>)}
-                </div>
-            );
-        }
+        document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
 
-        // Reveal
-        function Rev({children,className="",delay=0}) {
-            const ref=useRef(null); const [v,setV]=useState(false);
-            useEffect(()=>{ const el=ref.current; if(!el) return; const o=new IntersectionObserver(([e])=>{if(e.isIntersecting){setV(true);o.disconnect();}},{threshold:0.12}); o.observe(el); return ()=>o.disconnect(); },[]);
-            return <div ref={ref} className={`reveal-el ${v?'visible':''} ${className}`} style={{transitionDelay:`${delay}s`}}>{children}</div>;
-        }
-
-        function App() {
-            const [copied,setCopied]=useState('');
-            const copy=(t)=>{ navigator.clipboard.writeText(t); setCopied(t); setTimeout(()=>setCopied(''),1800); };
-            const features = [
-                {t:'6 LLM Providers',d:'OpenAI, Anthropic, Gemini, Mistral, Bedrock, and any OpenAI-compatible endpoint.'},
-                {t:'Offline Mode',d:'Ollama, LM Studio, direct GGUF files — zero internet, fully air-gapped.'},
-                {t:'FTS5 Memory',d:'Cross-session SQLite search so the agent never forgets.'},
-                {t:'Cron Scheduler',d:'Schedule any prompt, deliver results to Telegram/Discord.'},
-                {t:'Platform Control',d:'Autonomous GitHub, Vercel, WordPress, HuggingFace deployments.'},
-                {t:'Desktop GUI',d:'Flet-based native app for Linux, macOS, Windows.'},
-            ];
-            const donations = [
-                {label:'USDT (TRC20)',addr:'TH75J4zaMPwhyR3QxEFdwTCgU2Pp3yPUEr'},
-                {label:'WebMoney WMT',addr:'T202226490170'},
-                {label:'WebMoney WMZ',addr:'Z430378899900'},
-                {label:'bKash (BD)',addr:'01310211442'},
-            ];
-            const contacts = [
-                {name:'Email',url:'mailto:thejddev.official@gmail.com'},
-                {name:'Telegram',url:'https://t.me/aamoviesadmin'},
-                {name:'Facebook',url:'https://fb.com/itsshsshobuj'},
-                {name:'GitHub',url:'https://github.com/The-JDdev'},
-                {name:'Web Interface',url:'https://the-jddev.github.io/ManusClaw'},
-            ];
-
-            return (
-                <main className="relative">
-                    <div className="fixed inset-0 -z-10 bg-gradient-to-br from-[#06060c] via-[#030308] to-[#010104]"/>
-
-                    {/* Nav */}
-                    <nav className="fixed top-0 w-full z-40 px-6 py-4 flex items-center justify-between glass-strong rounded-b-[2rem]">
-                        <span className="font-mono font-bold text-amber-400 text-sm">ManusClaw v4.0</span>
-                        <div className="hidden md:flex gap-6 text-sm text-white/70">
-                            <a href="#features" className="hover:text-white transition">Features</a>
-                            <a href="#terminal" className="hover:text-white transition">Demo</a>
-                            <a href="#mind" className="hover:text-white transition">Pipeline</a>
-                            <a href="#contact" className="hover:text-white transition">Contact</a>
-                            <a href="#donate" className="hover:text-amber-400 transition">Donate</a>
-                        </div>
-                    </nav>
-
-                    {/* Hero */}
-                    <section className="min-h-screen flex flex-col items-center justify-center pt-24 pb-12 px-5 text-center">
-                        <Rev><ErrB><div className="glass-strong p-4 sm:p-6 rounded-[2.5rem] mb-8 max-w-4xl w-full"><Agent3D/></div></ErrB></Rev>
-                        <Rev delay={0.15}><h1 className="font-heading italic text-5xl sm:text-6xl md:text-7xl lg:text-8xl leading-[0.85] tracking-[-3px]"><span className="hl">ManusClaw</span> <span className="text-white/90">v4.0</span></h1></Rev>
-                        <Rev delay={0.3}><p className="mt-5 text-base sm:text-lg md:text-xl text-white/65 font-light max-w-xl">The <span className="hl-cyan hl">autonomous AI ecosystem</span> — multi‑agent, self‑improving, with skills, memory, and offline power.</p></Rev>
-                        <Rev delay={0.45}><div className="flex flex-wrap gap-3 mt-7"><a href="#terminal" className="glass-strong px-5 py-3 rounded-full font-semibold text-sm flex items-center gap-2 hover:scale-105 transition">⚡ Live Demo</a><a href="https://github.com/The-JDdev/ManusClaw" target="_blank" className="glass px-5 py-3 rounded-full font-medium text-sm flex items-center gap-2 hover:bg-white/8 transition">⭐ Star on GitHub</a></div></Rev>
-                    </section>
-
-                    {/* Terminal */}
-                    <section id="terminal" className="py-20 px-5"><Rev><h2 className="font-heading italic text-4xl md:text-5xl text-center mb-4">Watch it <span className="hl">execute</span></h2></Rev><Rev delay={0.2}><ErrB><Term/></ErrB></Rev></section>
-
-                    {/* Chat */}
-                    <section className="py-20 px-5 bg-black/20"><Rev><h2 className="font-heading italic text-4xl md:text-5xl text-center mb-10">Conversational <span className="hl-cyan hl">control</span></h2></Rev><Rev delay={0.2}><ErrB><Chat/></ErrB></Rev></section>
-
-                    {/* Mind map */}
-                    <section id="mind" className="py-20 px-5"><Rev><h2 className="font-heading italic text-4xl md:text-5xl text-center mb-4">Multi‑Agent <span className="hl">DAG Pipeline</span></h2></Rev><Rev delay={0.15}><MindMap/></Rev></section>
-
-                    {/* Features */}
-                    <section id="features" className="py-20 px-5"><Rev><h2 className="font-heading italic text-4xl md:text-5xl text-center mb-16">Everything <span className="hl">built‑in</span></h2></Rev>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 max-w-5xl mx-auto">{features.map((f,i)=><Rev key={i} delay={i*0.08}><div className="glass card-hover p-6 rounded-2xl h-full"><h3 className="font-heading italic text-2xl mb-3">{f.t}</h3><p className="text-white/55 text-sm">{f.d}</p></div></Rev>)}</div>
-                    </section>
-
-                    {/* Donate */}
-                    <section id="donate" className="py-20 px-5 border-t border-white/5"><Rev><h2 className="font-heading italic text-4xl md:text-5xl text-center mb-4">💎 <span className="hl">Fuel the Beast</span></h2><p className="text-center text-white/50 max-w-md mx-auto mb-10 text-sm">Built from Bangladesh on a smartphone. Your support keeps this engine alive.</p></Rev>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-xl mx-auto">{donations.map((d,i)=><Rev key={i} delay={i*0.08}><div className="glass p-4 rounded-2xl flex items-center justify-between gap-3"><div className="min-w-0"><span className="text-white/65 text-xs">{d.label}</span><p className="font-mono text-amber-300/80 text-xs mt-1 truncate">{d.addr}</p></div><button onClick={()=>copy(d.addr)} className="glass rounded-full p-2 hover:bg-white/10">{copied===d.addr?'✓':'📋'}</button></div></Rev>)}</div>
-                    </section>
-
-                    {/* Contact */}
-                    <section id="contact" className="py-20 px-5 border-t border-white/5"><Rev><h2 className="font-heading italic text-4xl md:text-5xl text-center mb-8">Contact & Community</h2></Rev>
-                        <div className="flex flex-wrap justify-center gap-4 max-w-2xl mx-auto">{contacts.map((c,i)=><Rev key={i} delay={i*0.08}><a href={c.url} target="_blank" className="glass px-5 py-3 rounded-full text-sm font-medium hover:bg-white/10 transition">{c.name}</a></Rev>)}</div>
-                        <Rev delay={0.4}><p className="text-center text-white/25 text-xs mt-10">MIT License · Built by <a href="https://github.com/The-JDdev" className="text-amber-400/50 underline">The-JDdev</a></p></Rev>
-                    </section>
-                </main>
-            );
-        }
-
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<ErrB><App/></ErrB>);
+        console.log('%c🦅 ManusClaw OS %cActivated Successfully.', 'color:#5b5fef; font-size: 1.5rem; font-weight: 800;', 'color:#10b981; font-size: 1rem;');
     </script>
-    <noscript><div style="color:white;text-align:center;padding:3rem;">JavaScript required.</div></noscript>
 </body>
 </html>
