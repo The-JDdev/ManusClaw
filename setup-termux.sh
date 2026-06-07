@@ -46,7 +46,6 @@ pip install -q \
     loguru \
     openai \
     anthropic \
-    tiktoken \
     aiohttp \
     duckduckgo-search \
     fastapi \

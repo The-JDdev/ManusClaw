@@ -84,8 +84,6 @@ pyinstaller \
   --noconfirm \
   --clean \
   --add-data "app:app" \
-  --hidden-import tiktoken_ext.openai_public \
-  --hidden-import tiktoken_ext \
   --collect-all tenacity \
   --collect-all pydantic \
   $EXTRA_FLAGS \

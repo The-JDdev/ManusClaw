@@ -83,7 +83,6 @@ def build() -> None:
         "loguru",
         "openai",
         "anthropic",
-        "tiktoken",
         "aiohttp",
         "fastapi",
         "uvicorn",
