@@ -44,10 +44,8 @@ pip install --upgrade pip -q
 # Install core + optional extras commonly useful on mobile
 pip install -q \
     pydantic \
-    loguru \
     openai \
     anthropic \
-    tiktoken \
     aiohttp \
     duckduckgo-search \
     fastapi \

@@ -37,6 +37,9 @@ Thumbs.db
 playwright-report/
 test-results/
 
+# plan
+plan.md
+
 # pytest
 .pytest_cache/
 .coverage
