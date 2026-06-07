@@ -10,7 +10,7 @@
 
 # 🐾 M A N U S C L A W
 
-### _The Ultimate Autonomous AI Agent Framework_
+### _Bangladesh's First Ultimate Autonomous AI Agent Framework_
 
 **Unleash self-reasoning CLI beasts to execute code, browse the web, and dominate tasks without limits. No GUIs. Pure power.**
 
