@@ -40,7 +40,8 @@ echo -e "${BOLD}[4/5] Installing Python packages...${NC}"
 cd "$INSTALL_DIR"
 pip install --upgrade pip -q
 
-# Termux-safe subset (skip playwright, crawl4ai — not available)
+# Termux-safe subset (skip playwright — not available on Android)
+# Install core + optional extras commonly useful on mobile
 pip install -q \
     pydantic \
     openai \
@@ -48,7 +49,8 @@ pip install -q \
     aiohttp \
     duckduckgo-search \
     fastapi \
-    "uvicorn[standard]"
+    "uvicorn[standard]" \
+    rich
 
 echo -e "  ${GREEN}✓ Packages installed${NC}"
 
