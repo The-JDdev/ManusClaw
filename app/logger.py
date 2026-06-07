@@ -2,7 +2,7 @@ from __future__ import annotations
 
 """
 ManusClaw Context-Aware Logger
-================================
+===============================
 Every log record is automatically tagged with four context fields:
 
   trace_id  — unique ID for the agent run (set once per run)
@@ -14,14 +14,15 @@ Context is propagated via Python's `contextvars` module, which means it
 works correctly across `async/await` boundaries without manual threading.
 """
 
+import logging
+import os
 import sys
 import uuid
 from contextvars import ContextVar
 from datetime import datetime
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Optional
-
-from loguru import logger as _logger
 
 from app.config import Config
 
@@ -31,53 +32,91 @@ _ctx_agent: ContextVar[str] = ContextVar("mc_agent", default="system")
 _ctx_step: ContextVar[int] = ContextVar("mc_step", default=0)
 _ctx_task: ContextVar[str] = ContextVar("mc_task", default="")
 
+logging.TRACE = logging.DEBUG - 5
+logging.addLevelName(logging.TRACE, "TRACE")
 
-def _patcher(record: dict) -> None:
-    record["extra"]["trace_id"] = _ctx_trace.get()
-    record["extra"]["agent"] = _ctx_agent.get()
-    record["extra"]["step"] = _ctx_step.get()
-    record["extra"]["task_id"] = _ctx_task.get()
+_RESET = "\033[0m"
+_COLORS = {
+    "TRACE": "\033[38;5;245m",
+    "DEBUG": "\033[36m",
+    "INFO": "\033[32m",
+    "WARNING": "\033[33m",
+    "ERROR": "\033[31m",
+    "CRITICAL": "\033[41;37m",
+}
+_LEVEL_COLORS = {
+    logging.TRACE: "TRACE",
+    logging.DEBUG: "DEBUG",
+    logging.INFO: "INFO",
+    logging.WARNING: "WARNING",
+    logging.ERROR: "ERROR",
+    logging.CRITICAL: "CRITICAL",
+}
+
+
+logging.TRACE = logging.DEBUG - 5
+logging.addLevelName(logging.TRACE, "TRACE")
+
+
+class ContextFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        record.trace_id = _ctx_trace.get()
+        record.agent = _ctx_agent.get()
+        record.step = _ctx_step.get()
+        record.task_id = _ctx_task.get()
+        return True
+
+
+class ColorfulFormatter(logging.Formatter):
+    def format(self, record: logging.LogRecord) -> str:
+        level_name = _LEVEL_COLORS.get(record.levelno, "INFO")
+        color = _COLORS.get(level_name, "")
+        time_str = self.formatTime(record, "%H:%M:%S")
+        level_padded = f"{level_name:<8}"
+        return (
+            f"{color}{time_str}{_RESET} | "
+            f"{color}{level_padded}{_RESET} | "
+            f"\033[36m{record.agent}\033[0m@\033[36m{record.step}\033[0m "
+            f"[\033[2m{record.trace_id}\033[0m] — "
+            f"{color}{record.getMessage()}{_RESET}"
+        )
 
 
 _LOG_DIR = Path("logs")
 _LOG_DIR.mkdir(exist_ok=True)
 _LOG_FILE = _LOG_DIR / f"{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
 
-_CONSOLE_FORMAT = (
-    "<green>{time:HH:mm:ss}</green> | "
-    "<level>{level: <8}</level> | "
-    "<cyan>{extra[agent]}</cyan>@<cyan>{extra[step]}</cyan> "
-    "[<dim>{extra[trace_id]}</dim>] — "
-    "<level>{message}</level>"
-)
+_log_level: str = "DEBUG"
+try:
+    _log_level = Config.get().logging.level.upper().strip()
+except Exception:
+    pass
 
-_FILE_FORMAT = (
-    "{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | "
-    "agent={extra[agent]} step={extra[step]} "
-    "trace={extra[trace_id]} task={extra[task_id]} | "
-    "{name}:{function}:{line} — {message}"
-)
+_logger = logging.getLogger("manusclaw")
+_logger.setLevel(getattr(logging, _log_level, logging.DEBUG))
+_logger.addFilter(ContextFilter())
 
-_log_level = Config.get().logging.level.upper().strip() or "DEBUG"
+_console_handler = logging.StreamHandler(sys.stderr)
+_console_handler.setFormatter(ColorfulFormatter())
+_logger.addHandler(_console_handler)
 
-_logger.remove()
-_logger.add(
-    sys.stderr,
-    colorize=True,
-    format=_CONSOLE_FORMAT,
-    level=_log_level,
-)
-_logger.add(
+_file_handler = RotatingFileHandler(
     str(_LOG_FILE),
-    rotation="50 MB",
-    retention="7 days",
-    compression="gz",
-    format=_FILE_FORMAT,
-    level=_log_level,
+    maxBytes=50 * 1024 * 1024,
+    backupCount=7,
     encoding="utf-8",
 )
+_file_formatter = logging.Formatter(
+    "{asctime} | {levelname:<8} | "
+    "agent={agent} step={step} "
+    "trace={trace_id} task={task_id} | "
+    "{name}:{funcName}:{lineno} — {message}",
+    style="{",
+)
+_file_handler.setFormatter(_file_formatter)
+_logger.addHandler(_file_handler)
 
-logger = _logger.patch(_patcher)
+logger = _logger
 
 
 def new_trace_id() -> str:

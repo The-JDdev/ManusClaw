@@ -13,7 +13,6 @@ authors = [{ name = "The-JDdev (SHS Shobuj)" }]
 
 dependencies = [
     "pydantic>=2.7,<3",
-    "loguru>=0.7",
     "python-dotenv>=1.0",
     "pyyaml>=6.0",
     "openai>=1.30",

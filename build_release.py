@@ -80,7 +80,6 @@ def build() -> None:
         "app.mcp",
         "app.sandbox",
         "pydantic",
-        "loguru",
         "openai",
         "anthropic",
         "aiohttp",

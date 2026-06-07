@@ -43,7 +43,6 @@ pip install --upgrade pip -q
 # Termux-safe subset (skip playwright, crawl4ai — not available)
 pip install -q \
     pydantic \
-    loguru \
     openai \
     anthropic \
     aiohttp \
