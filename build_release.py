@@ -85,8 +85,6 @@ def build() -> None:
         "anthropic",
         "tiktoken",
         "aiohttp",
-        "fastapi",
-        "uvicorn",
     ]
 
     hidden_imports = []
