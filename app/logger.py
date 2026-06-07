@@ -14,8 +14,10 @@ Context is propagated via Python's `contextvars` module, which means it
 works correctly across `async/await` boundaries without manual threading.
 """
 
+import gzip
 import logging
 import os
+import shutil
 import sys
 import uuid
 from contextvars import ContextVar
@@ -35,14 +37,16 @@ _ctx_task: ContextVar[str] = ContextVar("mc_task", default="")
 logging.TRACE = logging.DEBUG - 5
 logging.addLevelName(logging.TRACE, "TRACE")
 
-_RESET = "\033[0m"
+_USE_COLOR = sys.stderr.isatty() and "NO_COLOR" not in os.environ
+
+_RESET = "\033[0m" if _USE_COLOR else ""
 _COLORS = {
-    "TRACE": "\033[38;5;245m",
-    "DEBUG": "\033[36m",
-    "INFO": "\033[32m",
-    "WARNING": "\033[33m",
-    "ERROR": "\033[31m",
-    "CRITICAL": "\033[41;37m",
+    "TRACE": "\033[38;5;245m" if _USE_COLOR else "",
+    "DEBUG": "\033[36m" if _USE_COLOR else "",
+    "INFO": "\033[32m" if _USE_COLOR else "",
+    "WARNING": "\033[33m" if _USE_COLOR else "",
+    "ERROR": "\033[31m" if _USE_COLOR else "",
+    "CRITICAL": "\033[41;37m" if _USE_COLOR else "",
 }
 _LEVEL_COLORS = {
     logging.TRACE: "TRACE",
@@ -52,10 +56,6 @@ _LEVEL_COLORS = {
     logging.ERROR: "ERROR",
     logging.CRITICAL: "CRITICAL",
 }
-
-
-logging.TRACE = logging.DEBUG - 5
-logging.addLevelName(logging.TRACE, "TRACE")
 
 
 class ContextFilter(logging.Filter):
@@ -73,13 +73,48 @@ class ColorfulFormatter(logging.Formatter):
         color = _COLORS.get(level_name, "")
         time_str = self.formatTime(record, "%H:%M:%S")
         level_padded = f"{level_name:<8}"
+        if _USE_COLOR:
+            return (
+                f"{color}{time_str}{_RESET} | {color}{level_padded}{_RESET} | "
+                f"\033[36m{record.agent}\033[0m@\033[36m{record.step}\033[0m "
+                f"[\033[2m{record.trace_id}\033[0m] — "
+                f"{color}{record.getMessage()}{_RESET}"
+            )
         return (
-            f"{color}{time_str}{_RESET} | "
-            f"{color}{level_padded}{_RESET} | "
-            f"\033[36m{record.agent}\033[0m@\033[36m{record.step}\033[0m "
-            f"[\033[2m{record.trace_id}\033[0m] — "
-            f"{color}{record.getMessage()}{_RESET}"
+            f"{time_str} | {level_padded} | "
+            f"{record.agent}@{record.step} [{record.trace_id}] — "
+            f"{record.getMessage()}"
         )
+
+
+class CompressedRotatingFileHandler(RotatingFileHandler):
+    def doRollover(self) -> None:
+        if self.stream:
+            self.stream.close()
+            self.stream = None
+
+        for i in range(self.backupCount - 1, 0, -1):
+            sfn = f"{self.baseFilename}.{i}.gz"
+            dfn = f"{self.baseFilename}.{i + 1}.gz"
+            if os.path.exists(sfn):
+                if os.path.exists(dfn):
+                    os.remove(dfn)
+                os.rename(sfn, dfn)
+
+        dfn = f"{self.baseFilename}.1"
+        if os.path.exists(self.baseFilename):
+            if os.path.exists(dfn):
+                os.remove(dfn)
+            os.rename(self.baseFilename, dfn)
+
+        if os.path.exists(dfn):
+            gzfn = f"{dfn}.gz"
+            with open(dfn, "rb") as f_in, gzip.open(gzfn, "wb") as f_out:
+                shutil.copyfileobj(f_in, f_out)
+            os.remove(dfn)
+
+        if not self.delay:
+            self.stream = self._open()
 
 
 _LOG_DIR = Path("logs")
@@ -88,19 +123,22 @@ _LOG_FILE = _LOG_DIR / f"{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
 
 _log_level: str = "DEBUG"
 try:
-    _log_level = Config.get().logging.level.upper().strip()
+    _log_level = Config.get().logging.level.upper().strip() or "DEBUG"
 except Exception:
     pass
 
 _logger = logging.getLogger("manusclaw")
 _logger.setLevel(getattr(logging, _log_level, logging.DEBUG))
+
+_logger.trace = lambda msg, *args, **kwargs: _logger.log(logging.TRACE, msg, *args, **kwargs)
+
 _logger.addFilter(ContextFilter())
 
 _console_handler = logging.StreamHandler(sys.stderr)
 _console_handler.setFormatter(ColorfulFormatter())
 _logger.addHandler(_console_handler)
 
-_file_handler = RotatingFileHandler(
+_file_handler = CompressedRotatingFileHandler(
     str(_LOG_FILE),
     maxBytes=50 * 1024 * 1024,
     backupCount=7,
