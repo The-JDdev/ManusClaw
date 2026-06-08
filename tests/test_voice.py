@@ -101,11 +101,11 @@ def test_get_tts_provider_preferred_null():
 
 
 def test_get_tts_provider_preferred_openai():
-    """Even with preferred=openai, if _create_provider fails, it returns NullTTS."""
-    from app.voice.tts import get_tts_provider, NullTTS
-    # _create_provider catches exceptions and returns NullTTS
+    """With preferred=openai, _create_provider succeeds and returns OpenAITTS."""
+    from app.voice.tts import get_tts_provider, OpenAITTS
+    # _create_provider("openai") succeeds because API key is checked at synthesize(), not construction
     provider = get_tts_provider(preferred="openai")
-    assert isinstance(provider, NullTTS)
+    assert isinstance(provider, OpenAITTS)
 
 
 # ── WakeWordDetector in stub mode ──────────────────────────────────────────
