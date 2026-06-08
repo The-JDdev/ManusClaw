@@ -2,7 +2,7 @@
 
 <img src="https://img.shields.io/badge/Version-5.0.0-ff69b4?style=for-the-badge&logo=github&logoColor=white" alt="Version">
 <img src="https://img.shields.io/badge/Python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python">
-<img src="https://img.shields.io/badge/License-MIT-00C853?style=for-the-badge&logo=opensourceinitiative&logoColor=white" alt="License">
+<img src="https://img.shields.io/badge/License-Modified_MIT-FFD700?style=for-the-badge&logo=opensourceinitiative&logoColor=black" alt="License">
 <img src="https://img.shields.io/badge/AI-Agentic_Framework-6C63FF?style=for-the-badge&logo=robot&logoColor=white" alt="AI Framework">
 <img src="https://img.shields.io/badge/LLM-10%2B%20Providers-FF6F00?style=for-the-badge&logo=brain&logoColor=white" alt="LLM Providers">
 <img src="https://img.shields.io/badge/Channels-12%2B%20Platforms-00B4D8?style=for-the-badge&logo=message&logoColor=white" alt="Channels">
@@ -1665,9 +1665,20 @@ TH75J4zaMPwhyR3QxEFdwTCgU2Pp3yPUEr
 
 ## 📜 License
 
-This project is licensed under the **MIT License**.
+This project is licensed under the **Modified MIT License**.
 
-<img src="https://img.shields.io/badge/License-MIT-00C853?style=flat-square" alt="MIT License">
+<img src="https://img.shields.io/badge/License-Modified_MIT-FFD700?style=flat-square&logo=opensourceinitiative&logoColor=black" alt="Modified MIT License">
+
+### Summary
+
+| Use Case | Credit Required? | Conditions |
+|---|---|---|
+| **Personal / Educational / Open-Source** | No | Free to use, modify, distribute without attribution |
+| **Internal / Non-Commercial** | No | Free for organizations for non-revenue purposes |
+| **Commercial / SaaS / Productized** | **Yes** | Must credit "ManusClaw, created by The-JDdev (SHS Lab)" prominently |
+| **Name / Trademark Use** | **Written permission required** | Cannot use "ManusClaw", "The-JDdev", or "SHS Lab" to market derived products |
+
+See the [LICENSE](LICENSE) file in the repository for the full legal text.
 
 ---
 

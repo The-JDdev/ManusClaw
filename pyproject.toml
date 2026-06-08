@@ -8,7 +8,7 @@ version = "5.0.0"
 description = "ManusClaw: Production-grade autonomous AI agent framework by The-JDdev"
 readme = "README.md"
 requires-python = ">=3.11"
-license = { text = "MIT" }
+license = { text = "Modified MIT License - see LICENSE file" }
 authors = [{ name = "The-JDdev (SHS Shobuj)" }]
 
 dependencies = [
