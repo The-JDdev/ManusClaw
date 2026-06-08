@@ -21,7 +21,15 @@ aiohttp>=3.9
 # google   = google-generativeai>=0.7
 # viz      = matplotlib>=3.9  mpld3>=0.5.10
 #
+# ── v5.0 New Optional Groups ─────────────────────────────────────────────────
+# voice    = pvporcupine>=3.0  sounddevice>=0.4  speech-recognition>=3.10  pyttsx3>=2.90  elevenlabs>=0.9
+# ssh      = asyncssh>=2.14
+# gmail    = google-api-python-client>=2.100  google-auth-httplib2>=0.1
+# matrix   = matrix-nio>=0.22
+# companion = pystray>=0.19  rumps>=0.2
+#
 # all      = everything above
+# all-plus = all + voice + ssh + gmail + matrix + companion
 
 # ── Dev / test ────────────────────────────────────────────────────────────────
 pytest>=8

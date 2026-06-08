@@ -65,7 +65,8 @@ ROLE_EMOJI = {"user": "👤", "assistant": "🤖", "tool": "🔧", "system": "�
 
 SLASH_COMMANDS = [
     "/model", "/skills", "/tools", "/memory", "/compress",
-    "/new", "/resume", "/branch", "/tasks", "/bg", "/help", "/exit",
+    "/new", "/resume", "/branch", "/tasks", "/bg", "/sessions",
+    "/help", "/exit",
 ]
 
 
@@ -239,6 +240,10 @@ async def _handle_slash(cmd: str, agent=None, session_id: str = "",
             "  /branch        — branch current session\n"
             "  /tasks         — show background task queue status\n"
             "  /bg <task>     — submit task to background queue\n"
+            '  /sessions list — show all sessions\n'
+            '  /sessions history <id> — show session conversation\n'
+            '  /sessions send <id> -m "text" — inject message\n'
+            '  /sessions spawn -p "task" — create and run session\n'
             "  /exit          — quit (background tasks continue)\n"
         )
         return help_text
@@ -337,10 +342,96 @@ async def _handle_slash(cmd: str, agent=None, session_id: str = "",
             return f"Task submitted to background queue: {task.id}\nUse /tasks to monitor progress."
         return "Task queue not initialized."
 
+    if command == "/sessions":
+        return await _handle_sessions(arg, agent, session_id)
+
     if command == "/exit":
         return "EXIT"
 
     return f"Unknown command: {command}. Type /help for help."
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# /sessions subcommand handler
+# ──────────────────────────────────────────────────────────────────────────────
+
+async def _handle_sessions(arg: str, agent=None, session_id: str = "") -> str:
+    """Handle /sessions subcommands: list, history, send, spawn."""
+    parts = arg.strip().split(None, 1)
+    subcmd = parts[0].lower() if parts else ""
+    subarg = parts[1] if len(parts) > 1 else ""
+
+    if not subcmd or subcmd == "list":
+        from app.db.session import SessionDB
+        db = SessionDB()
+        sessions = await db.get_sessions(limit=20)
+        db.close()
+        if not sessions:
+            return "No sessions found."
+        lines = ["Sessions:", f"{'ID':<14} {'STATE':<10} {'AGENT':<10} {'GOAL'}", "-" * 70]
+        for s in sessions:
+            goal = (s.get("goal") or "")[:40]
+            lines.append(f"  {s['id']:<14} {s.get('state', '?'):<10} {s.get('agent_name', 'manus'):<10} {goal}")
+        return "\n".join(lines)
+
+    if subcmd == "history":
+        if not subarg:
+            return "Usage: /sessions history <session_id>"
+        from app.db.session import SessionDB
+        db = SessionDB()
+        messages = await db.get_session_messages(subarg.strip())
+        tool_calls = await db.get_session_tool_calls(subarg.strip())
+        db.close()
+        if not messages:
+            return f"No messages found for session {subarg.strip()}"
+        lines = [f"=== Session {subarg.strip()} ==="]
+        for msg in messages[-30:]:
+            role = msg.get("role", "?").upper()
+            content = (msg.get("content") or "")[:200]
+            if role != "SYSTEM":
+                lines.append(f"  [{role}] {content}")
+        if tool_calls:
+            lines.append(f"\n  ({len(tool_calls)} tool call(s))")
+        return "\n".join(lines)
+
+    if subcmd == "send":
+        # Parse: send <session_id> --message "text" or send <session_id> -m "text"
+        import shlex
+        tokens = list(shlex.split(subarg)) if subarg else []
+        if not tokens:
+            return "Usage: /sessions send <session_id> --message \"text\""
+        sid = tokens[0]
+        msg_text = ""
+        i = 1
+        while i < len(tokens):
+            if tokens[i] in ("--message", "-m") and i + 1 < len(tokens):
+                msg_text = tokens[i + 1]
+                break
+            i += 1
+        if not msg_text:
+            return "Usage: /sessions send <session_id> --message \"text\""
+        from app.db.session import SessionDB
+        db = SessionDB()
+        await db.log_message(sid, "user", msg_text)
+        db.close()
+        return f"Message injected into session {sid}."
+
+    if subcmd == "spawn":
+        # Parse: spawn --prompt "task" or spawn -p "task"
+        import shlex
+        tokens = list(shlex.split(subarg)) if subarg else []
+        prompt_text = ""
+        i = 0
+        while i < len(tokens):
+            if tokens[i] in ("--prompt", "-p") and i + 1 < len(tokens):
+                prompt_text = tokens[i + 1]
+                break
+            i += 1
+        if not prompt_text:
+            return "Usage: /sessions spawn --prompt \"task description\""
+        return f"SPAWN_TASK:{prompt_text}"
+
+    return f"Unknown sessions subcommand: {subcmd}. Use: list, history, send, spawn"
 
 
 # ──────────────────────────────────────────────────────────────────────────────

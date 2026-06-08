@@ -86,6 +86,128 @@ class CredentialPool:
         return sum(1 for c in self._creds if c.is_available)
 
 
+    @classmethod
+    def from_profile(cls, profile: "ModelProfile") -> "CredentialPool":
+        """Build a CredentialPool from a ModelProfile's entries.
+
+        Extracts all unique API keys from the profile, ordered by priority.
+        Useful for cross-provider rotation where the caller wants a unified
+        pool of all configured keys regardless of provider.
+
+        Args:
+            profile: A ModelProfile instance.
+
+        Returns:
+            A CredentialPool with all keys from the profile.
+        """
+        credentials = []
+        seen_keys: set[str] = set()
+        for entry in profile.entries:
+            if entry.api_key and entry.api_key not in seen_keys:
+                credentials.append({
+                    "api_key": entry.api_key,
+                    "priority": entry.priority,
+                })
+                seen_keys.add(entry.api_key)
+        return cls(credentials, cooldown_s=60.0) if credentials else cls([])
+
+
+class CrossProviderRotator:
+    """Cross-provider credential rotation.
+
+    Wraps multiple CredentialPool instances (one per provider) and provides
+    a unified interface for getting the next available credential across
+    all providers. Works in conjunction with ModelProfile for cross-provider
+    failover.
+
+    Usage::
+
+        rotator = CrossProviderRotator()
+        rotator.add_pool("openai", openai_pool)
+        rotator.add_pool("anthropic", anthropic_pool)
+
+        cred, provider = await rotator.get_next("openai")  # Try openai first
+        if cred is None:
+            cred, provider = await rotator.get_next()  # Try any provider
+    """
+
+    def __init__(self) -> None:
+        self._pools: dict[str, CredentialPool] = {}
+        self._lock = asyncio.Lock()
+        self._priority_order: list[str] = []
+
+    def add_pool(self, provider: str, pool: CredentialPool,
+                 priority: int = 0) -> None:
+        """Register a credential pool for a provider.
+
+        Args:
+            provider: Provider name (``openai``, ``anthropic``, etc.).
+            pool: CredentialPool instance.
+            priority: Lower = higher priority when selecting across providers.
+        """
+        self._pools[provider] = pool
+        # Maintain priority-ordered list
+        if provider not in self._priority_order:
+            self._priority_order.append(provider)
+        self._priority_order.sort(
+            key=lambda p: (priority, p)
+        )
+        logger.debug(
+            f"[CrossProviderRotator] Added pool for {provider} "
+            f"(size={pool.size}, priority={priority})"
+        )
+
+    async def get_next(self, preferred_provider: Optional[str] = None) -> tuple[Optional[Credential], str]:
+        """Get the next available credential, trying preferred provider first.
+
+        Args:
+            preferred_provider: Provider to try first. If None, tries all
+                               in priority order.
+
+        Returns:
+            Tuple of (Credential, provider_name). Credential may be None
+            if all pools are exhausted.
+        """
+        async with self._lock:
+            # Try preferred provider first
+            if preferred_provider and preferred_provider in self._pools:
+                cred = await self._pools[preferred_provider].get()
+                if cred:
+                    return cred, preferred_provider
+
+            # Try all providers in priority order
+            for provider in self._priority_order:
+                if preferred_provider and provider == preferred_provider:
+                    continue  # Already tried
+                cred = await self._pools[provider].get()
+                if cred:
+                    return cred, provider
+
+            return None, ""
+
+    async def mark_exhausted(self, provider: str, cred: Credential) -> None:
+        """Mark a credential as exhausted in its provider pool."""
+        pool = self._pools.get(provider)
+        if pool:
+            await pool.mark_exhausted(cred)
+
+    async def mark_success(self, provider: str, cred: Credential) -> None:
+        """Mark a credential as successful in its provider pool."""
+        pool = self._pools.get(provider)
+        if pool:
+            await pool.mark_success(cred)
+
+    @property
+    def providers(self) -> list[str]:
+        """Return the list of registered providers in priority order."""
+        return list(self._priority_order)
+
+    @property
+    def total_available(self) -> int:
+        """Return the total number of available credentials across all pools."""
+        return sum(p.available_count for p in self._pools.values())
+
+
 def build_pool_from_config(provider: str, primary_key: Optional[str] = None) -> Optional[CredentialPool]:
     """
     Build a CredentialPool from environment variables.

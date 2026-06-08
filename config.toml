@@ -31,5 +31,13 @@ timeout      = 30
 enable_data_analysis = false
 timeout = 7200
 
+[ssh]
+# SSH remote gateway control (requires asyncssh)
+enabled            = false
+port               = 2222
+host               = "0.0.0.0"
+# host_key_path      = "~/.manusclaw/ssh/host_key"
+# authorized_keys_path = "~/.manusclaw/ssh/authorized_keys"
+
 workspace_dir = "workspace"
 max_steps     = 30

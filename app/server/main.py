@@ -21,17 +21,19 @@ import os
 import time
 from typing import Any, Optional
 
+from pathlib import Path
+from contextlib import asynccontextmanager
+
 from fastapi import Depends, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.security import APIKeyHeader
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from app.db.session import SessionDB
 from app.logger import logger
 from app.permissions.gate import AgentMode
-
-from contextlib import asynccontextmanager
 
 @asynccontextmanager
 async def _lifespan(application: FastAPI):
@@ -93,6 +95,9 @@ else:
 _API_KEY = os.getenv("MANUSCLAW_API_KEY", "")
 _api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
+# Static files directory
+_STATIC_DIR = Path(__file__).parent / "static"
+
 # API key authentication
 
 
@@ -132,6 +137,21 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 db = SessionDB()
+
+# ─── Canvas & Chat integration ──────────────────────────────────────────
+
+# Canvas chat connection manager (multiple clients per session)
+canvas_chat_manager: dict[str, list[WebSocket]] = {}
+
+# Lazy-init canvas server
+def _get_canvas_server():
+    from app.canvas.server import CanvasServer
+    srv = getattr(app.state, "canvas_server", None)
+    if srv is None:
+        srv = CanvasServer()
+        app.state.canvas_server = srv
+    return srv
+
 
 
 class StreamingManus:
@@ -351,6 +371,203 @@ async def run_multi_agent(req: MultiAgentRequest):
     orchestrator = MultiAgentOrchestrator(mode=mode)
     result = await orchestrator.run(req.goal)
     return {"result": result}
+
+
+# ─── Static file serving & HTML pages ─────────────────────────────────────
+
+# Mount static files (must come before catch-all routes)
+if _STATIC_DIR.is_dir():
+    app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
+
+# ─── Webhook router ─────────────────────────────────────────────────────────
+from app.server.webhook_router import router as webhook_router
+app.include_router(webhook_router)
+
+
+@app.get("/chat", response_class=HTMLResponse)
+async def chat_page():
+    """Serve the built-in web chat interface."""
+    chat_html = _STATIC_DIR / "chat.html"
+    if chat_html.is_file():
+        return HTMLResponse(content=chat_html.read_text(encoding="utf-8"))
+    return HTMLResponse(content="<h1>ManusClaw WebChat</h1><p>chat.html not found.</p>")
+
+
+@app.get("/canvas", response_class=HTMLResponse)
+async def canvas_page(session: str = "default"):
+    """Serve the canvas viewer page."""
+    canvas_html = _STATIC_DIR / "canvas.html"
+    if canvas_html.is_file():
+        return HTMLResponse(content=canvas_html.read_text(encoding="utf-8"))
+    return HTMLResponse(content="<h1>ManusClaw Canvas</h1><p>canvas.html not found.</p>")
+
+
+# ─── Chat WebSocket endpoint ─────────────────────────────────────────────
+
+async def _auth_ws(websocket: WebSocket) -> bool:
+    """Check WebSocket authentication. Returns True if authorized."""
+    if not _API_KEY:
+        return True
+    token = (
+        websocket.query_params.get("api_key")
+        or websocket.headers.get("x-api-key", "")
+    )
+    return token == _API_KEY
+
+
+@app.websocket("/ws/chat/{session_id}")
+async def chat_websocket_endpoint(websocket: WebSocket, session_id: str):
+    """WebSocket endpoint for the built-in web chat client.
+
+    Similar to the generic /ws/{session_id} but with chat-specific message
+    handling including typed prompts, file attachments, and canvas integration.
+    """
+    if not await _auth_ws(websocket):
+        await websocket.close(code=4001)
+        return
+
+    await websocket.accept()
+
+    # Register connection
+    if session_id not in canvas_chat_manager:
+        canvas_chat_manager[session_id] = []
+    canvas_chat_manager[session_id].append(websocket)
+
+    logger.info("[Server] Chat WebSocket connected: %s", session_id)
+
+    try:
+        await websocket.send_text(json.dumps({
+            "type": "connected",
+            "session_id": session_id,
+            "message": "ManusClaw Chat ready. Send {\"type\": \"prompt\", \"prompt\": \"...\"} to start.",
+        }))
+        while True:
+            data = await websocket.receive_text()
+            try:
+                msg = json.loads(data)
+            except json.JSONDecodeError:
+                await websocket.send_text(json.dumps({"type": "error", "message": "Invalid JSON"}))
+                continue
+
+            msg_type = msg.get("type", "")
+
+            if msg_type == "ping":
+                await websocket.send_text(json.dumps({"type": "pong"}))
+                continue
+
+            # Prompt message — run the agent
+            prompt = msg.get("prompt", "").strip()
+            if not prompt and msg_type != "prompt":
+                # Unknown message type
+                await websocket.send_text(json.dumps({"type": "error", "message": f"Unknown type: {msg_type}"}))
+                continue
+
+            if not prompt:
+                await websocket.send_text(json.dumps({"type": "error", "message": "No prompt provided"}))
+                continue
+
+            mode_str = msg.get("mode", "build")
+            mode = AgentMode.PLAN if mode_str == "plan" else AgentMode.BUILD
+
+            await websocket.send_text(json.dumps({"type": "agent_start", "prompt": prompt[:200]}))
+
+            streamer = StreamingManus(session_id=session_id, mode=mode, max_steps=msg.get("max_steps"))
+            try:
+                await streamer.run(prompt)
+            except Exception as e:
+                await websocket.send_text(json.dumps({"type": "error", "message": str(e)}))
+
+    except WebSocketDisconnect:
+        logger.info("[Server] Chat WebSocket disconnected: %s", session_id)
+    finally:
+        conns = canvas_chat_manager.get(session_id, [])
+        if websocket in conns:
+            conns.remove(websocket)
+        if not conns:
+            canvas_chat_manager.pop(session_id, None)
+
+
+# ─── Canvas WebSocket endpoint ──────────────────────────────────────────
+
+@app.websocket("/ws/canvas/{session_id}")
+async def canvas_websocket_endpoint(websocket: WebSocket, session_id: str):
+    """WebSocket endpoint for the live canvas viewer.
+
+    Handles A2UI protocol messages: sync, update, clear, event.
+    Delegates to CanvasServer for state management.
+    """
+    if not await _auth_ws(websocket):
+        await websocket.close(code=4001)
+        return
+
+    canvas_srv = _get_canvas_server()
+
+    # Use the canvas server's handler via its internal pattern
+    await websocket.accept()
+
+    # Register as a canvas connection
+    if session_id not in canvas_chat_manager:
+        canvas_chat_manager[session_id] = []
+    canvas_chat_manager[session_id].append(websocket)
+
+    logger.info("[Server] Canvas WebSocket connected: %s", session_id)
+
+    # Send initial state sync
+    state = await canvas_srv.get_state(session_id)
+    try:
+        await websocket.send_text(json.dumps({
+            "message_type": "sync",
+            "session_id": session_id,
+            "components": state.get("components", []),
+        }))
+    except Exception as exc:
+        logger.error("[Server] Failed to send canvas sync: %s", exc)
+
+    try:
+        while True:
+            raw = await websocket.receive_text()
+            try:
+                msg = json.loads(raw)
+            except json.JSONDecodeError:
+                await websocket.send_text(json.dumps({
+                    "message_type": "error",
+                    "error": "Invalid JSON",
+                }))
+                continue
+
+            msg_type = msg.get("message_type", "")
+
+            if msg_type == "ping":
+                await websocket.send_text(json.dumps({"message_type": "pong"}))
+                continue
+
+            if msg_type == "sync":
+                state = await canvas_srv.get_state(session_id)
+                await websocket.send_text(json.dumps({
+                    "message_type": "sync",
+                    "session_id": session_id,
+                    "components": state.get("components", []),
+                }))
+                continue
+
+            if msg_type == "event":
+                # Forward events to registered handlers
+                from app.canvas.a2ui import event_from_dict
+                event = event_from_dict(msg)
+                logger.debug("[Server] Canvas event: %s -> %s", event.component_id, event.action)
+                # Events could trigger agent actions via canvas event handlers
+                continue
+
+            # Handle update/clear from the server-side (agent → viewer is via canvas_srv.update)
+
+    except WebSocketDisconnect:
+        logger.info("[Server] Canvas WebSocket disconnected: %s", session_id)
+    finally:
+        conns = canvas_chat_manager.get(session_id, [])
+        if websocket in conns:
+            conns.remove(websocket)
+        if not conns:
+            canvas_chat_manager.pop(session_id, None)
 
 
 def serve() -> None:
